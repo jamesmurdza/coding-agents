@@ -1,6 +1,6 @@
 # Code Agent SDK
 
-A TypeScript SDK for interacting with AI coding agents ([Claude](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex), [Gemini](https://github.com/google-gemini/gemini-cli), [OpenCode](https://github.com/opencode-ai/opencode)) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
+A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [Gemini](https://geminicli.com/docs/), [OpenCode](https://opencode.ai/docs/)) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
 
 ## Features
 
