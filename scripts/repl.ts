@@ -173,21 +173,14 @@ async function main() {
         let firstToken = true
         let sawAnyOutput = false
 
+        const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
+
         for await (const event of provider.run({ prompt: trimmed, model: selectedModel, autoInstall: true, timeout: 120 })) {
-          // Always show session events (helpful for debugging resume/no-output cases)
-          if (event.type === "session") {
-            if (firstToken) {
-              process.stdout.write("\r\x1b[K")
-              firstToken = false
-            }
-            sawAnyOutput = true
-            console.log(`\x1b[90m[Session started: ${event.id}]\x1b[0m`)
-            continue
-          }
+          // Session events are captured internally; don't print them in REPL output.
+          if (event.type === "session") continue
           if (event.type === "token") {
             if (firstToken) {
               // Clear "Thinking..." and show provider's response
-              const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
               process.stdout.write(`\r\x1b[K\x1b[33m${providerLabel}:\x1b[0m `)
               firstToken = false
             }
@@ -195,7 +188,8 @@ async function main() {
             process.stdout.write(event.text)
           } else if (event.type === "tool_start") {
             if (firstToken) {
-              process.stdout.write("\r\x1b[K")
+              // Clear "Thinking..." and show provider label even if first output is a tool.
+              process.stdout.write(`\r\x1b[K\x1b[33m${providerLabel}:\x1b[0m\n`)
               firstToken = false
             }
             sawAnyOutput = true
