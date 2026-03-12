@@ -1,12 +1,12 @@
 # Code Agent SDK
 
-A TypeScript SDK for interacting with AI coding agents (Claude, Codex, OpenCode, Gemini) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
+A TypeScript SDK for interacting with AI coding agents ([Claude](https://docs.anthropic.com/en/docs/claude-code), [Codex](https://developers.openai.com/codex/cli), [Gemini](https://geminicli.com/docs/), [OpenCode](https://opencode.ai/docs/)) through a unified interface. **All commands run in secure [Daytona](https://daytona.io) sandboxes by default** with real-time PTY streaming.
 
 ## Features
 
 - **Secure by default** - All CLI execution happens in isolated Daytona sandboxes
 - **Real-time streaming** - PTY-based streaming for live token output
-- **Unified interface** - Same API for Claude, Codex, OpenCode, and Gemini
+- **Unified interface** - Same API for Claude, Codex, Gemini, and OpenCode
 - **Auto-install** - CLIs are automatically installed in sandboxes
 - **Session persistence** - Resume conversations across runs
 
@@ -14,10 +14,10 @@ A TypeScript SDK for interacting with AI coding agents (Claude, Codex, OpenCode,
 
 | Provider | Status | CLI | Authentication |
 |----------|--------|-----|----------------|
-| Claude | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
-| Codex | **Tested** | `codex` | `OPENAI_API_KEY` env var |
-| OpenCode | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
-| Gemini | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
+| [Claude](https://docs.anthropic.com/en/docs/claude-code) | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
+| [Codex](https://developers.openai.com/codex/cli) | **Tested** | `codex` | `OPENAI_API_KEY` env var |
+| [Gemini](https://geminicli.com/docs/) | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
+| [OpenCode](https://opencode.ai/docs/) | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
 
 ## Installation
 
@@ -142,7 +142,7 @@ const provider = createProvider("claude", {
 })
 ```
 
-**Supported providers:** `"claude"`, `"codex"`, `"opencode"`, `"gemini"`
+**Supported providers:** `"claude"`, `"codex"`, `"gemini"`, `"opencode"`
 
 ### provider.run(options)
 
@@ -206,7 +206,32 @@ await claude.run({ prompt: "Hello", model: "haiku" })
 await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
 ```
 
-### OpenCode Models (OpenAI)
+See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for all available models.
+
+### Codex Models
+
+```typescript
+const codex = createProvider("codex", { sandbox })
+
+await codex.run({ prompt: "Hello", model: "gpt-4o" })
+await codex.run({ prompt: "Hello", model: "o1" })
+await codex.run({ prompt: "Hello", model: "o3" })
+```
+
+See [Codex CLI models](https://developers.openai.com/codex/models) for all available models.
+
+### Gemini Models
+
+```typescript
+const gemini = createProvider("gemini", { sandbox })
+
+await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
+await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
+```
+
+See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all available models.
+
+### OpenCode Models
 
 ```typescript
 const opencode = createProvider("opencode", { sandbox })
@@ -222,24 +247,7 @@ await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
 await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
 ```
 
-### Codex Models
-
-```typescript
-const codex = createProvider("codex", { sandbox })
-
-await codex.run({ prompt: "Hello", model: "gpt-4o" })
-await codex.run({ prompt: "Hello", model: "o1" })
-await codex.run({ prompt: "Hello", model: "o3" })
-```
-
-### Gemini Models
-
-```typescript
-const gemini = createProvider("gemini", { sandbox })
-
-await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
-await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
-```
+See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.
 
 ## Environment Variables
 
@@ -295,7 +303,7 @@ Options:
   -p, --provider <name>  Provider to use (default: claude)
   -h, --help             Show help message
 
-Supported providers: claude, codex, opencode, gemini
+Supported providers: claude, codex, gemini, opencode
 ```
 
 ### Example Session
@@ -364,6 +372,18 @@ DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/test-sdk-full.ts
 # Run REPL
 DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/repl.ts
 ```
+
+## Resources
+
+### Sandbox Infrastructure
+- [Daytona Documentation](https://www.daytona.io/docs/) - Secure sandbox infrastructure
+- [Daytona GitHub](https://github.com/daytonaio/daytona) - Open source sandbox platform
+
+### AI Coding Agents
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) - Anthropic's agentic coding tool ([GitHub](https://github.com/anthropics/claude-code))
+- [Codex CLI](https://developers.openai.com/codex/cli) - OpenAI's lightweight coding agent ([GitHub](https://github.com/openai/codex))
+- [Gemini CLI](https://geminicli.com/docs/) - Google's open-source AI agent ([GitHub](https://github.com/google-gemini/gemini-cli))
+- [OpenCode](https://opencode.ai/docs/) - Open source AI coding agent ([GitHub](https://github.com/opencode-ai/opencode))
 
 ## License
 
