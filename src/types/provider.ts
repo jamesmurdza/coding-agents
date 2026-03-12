@@ -95,6 +95,9 @@ export interface IProvider {
   /** Parse a line of output into one or more events */
   parse(line: string): Event | Event[] | null
 
+  /** Resolves when CLI install and setup (env, Codex login) have completed. Await before first run if you want "ready" UX. */
+  readonly ready: Promise<void>
+
   /** Run the provider and emit events */
   run(options?: RunOptions): AsyncGenerator<Event, void, unknown>
 }

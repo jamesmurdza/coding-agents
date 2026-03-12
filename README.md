@@ -8,7 +8,7 @@ import { createSession } from "code-agent-sdk"
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
-const claude = createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+const claude = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
 
 for await (const event of claude.run("Hello!")) {
   if (event.type === "token") process.stdout.write(event.text)
@@ -88,7 +88,7 @@ const sandbox = await daytona.create({
 ### 2. Create a session
 
 ```typescript
-const claude = createSession("claude", {
+const claude = await createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
@@ -125,7 +125,7 @@ async function main() {
   })
 
   try {
-    const session = createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+    const session = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
 
     for await (const event of session.run("List /tmp then write /tmp/out.txt with 'done'")) {
       switch (event.type) {
@@ -180,10 +180,10 @@ const provider = createProvider("claude", {
 
 ### createSession(name, options)
 
-Creates a session with defaults (model, timeout, env, etc.) and exposes `session.run(prompt)`. Pass `env` with your provider API key(s). The CLI is installed in the sandbox when you create the session; pass `skipInstall: true` to skip.
+Creates a session with defaults (model, timeout, env, etc.) and exposes `session.run(prompt)`. Pass `env` with your provider API key(s). **Async:** installs the CLI in the sandbox and runs Codex login if needed, so the returned session is ready to use. Pass `skipInstall: true` to skip install.
 
 ```typescript
-const session = createSession("claude", {
+const session = await createSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   model: "sonnet",
@@ -313,7 +313,7 @@ Each provider supports specifying a model via the `model` option. With sessions,
 ```typescript
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
-const claude = createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+const claude = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
 
 // Use model alias (recommended)
 await claude.run("Hello", { model: "sonnet" })
@@ -331,7 +331,7 @@ See [Claude Code model configuration](https://code.claude.com/docs/en/model-conf
 ```typescript
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-const codex = createSession("codex", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
+const codex = await createSession("codex", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
 
 await codex.run("Hello", { model: "gpt-4o" })
 await codex.run("Hello", { model: "o1" })
@@ -345,7 +345,7 @@ See [Codex CLI models](https://developers.openai.com/codex/models) for all avail
 ```typescript
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY } })
-const gemini = createSession("gemini", { sandbox, env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY } })
+const gemini = await createSession("gemini", { sandbox, env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY } })
 
 await gemini.run("Hello", { model: "gemini-2.0-flash" })
 await gemini.run("Hello", { model: "gemini-1.5-pro" })
@@ -358,7 +358,7 @@ See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all a
 ```typescript
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-const opencode = createSession("opencode", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
+const opencode = await createSession("opencode", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
 
 // Format: "provider/model"
 await opencode.run("Hello", { model: "openai/gpt-4o" })           // Default
@@ -378,7 +378,7 @@ See [OpenCode models](https://opencode.ai/docs/models/) for all available models
 If you need to run CLIs directly on your machine (not recommended):
 
 ```typescript
-const session = createSession("claude", {
+const session = await createSession("claude", {
   dangerouslyAllowLocalExecution: true,
 })
 

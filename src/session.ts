@@ -20,10 +20,10 @@ export class Session {
 
   private defaults: Omit<RunOptions, "prompt"> = {}
 
-  constructor(name: ProviderName, options: SessionOptions) {
+  constructor(name: ProviderName, options: SessionOptions, provider: Provider) {
     this.name = name
-    const { model, sessionId, timeout, skipInstall, env, ...providerOptions } = options
-    this.provider = createProvider(name, { ...providerOptions, skipInstall, env })
+    this.provider = provider
+    const { model, sessionId, timeout, skipInstall, env } = options
     this.defaults = { model, sessionId, timeout, skipInstall, env }
   }
 
@@ -36,7 +36,10 @@ export class Session {
   }
 }
 
-export function createSession(name: ProviderName, options: SessionOptions): Session {
-  return new Session(name, options)
+export async function createSession(name: ProviderName, options: SessionOptions): Promise<Session> {
+  const { model, sessionId, timeout, skipInstall, env, ...providerOptions } = options
+  const provider = createProvider(name, { ...providerOptions, skipInstall, env })
+  await provider.ready
+  return new Session(name, options, provider)
 }
 

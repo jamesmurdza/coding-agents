@@ -15,7 +15,7 @@
  */
 import * as readline from "node:readline"
 import { Daytona } from "@daytonaio/sdk"
-import { createProvider, getProviderNames, isValidProvider, type ProviderName } from "../src/index.js"
+import { createSession, getProviderNames, isValidProvider, type ProviderName } from "../src/index.js"
 
 // Provider -> API key environment variable mapping
 const PROVIDER_API_KEYS: Record<ProviderName, { envVar: string; name: string }> = {
@@ -115,7 +115,7 @@ async function main() {
   console.log()
 
   const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
-  const provider = createProvider(selectedProvider, { sandbox, env })
+  const session = await createSession(selectedProvider, { sandbox, env })
 
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready.`)
   console.log()
@@ -149,7 +149,7 @@ async function main() {
       }
 
       if (trimmed === "/clear") {
-        provider.sessionId = null
+        session.provider.sessionId = null
         console.log("Session cleared.\n")
         prompt()
         return
@@ -163,7 +163,7 @@ async function main() {
 
         const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
 
-        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, timeout: 120 })) {
+        for await (const event of session.run(trimmed, { model: selectedModel, timeout: 120 })) {
           // Session events are captured internally; don't print them in REPL output.
           if (event.type === "session") continue
           if (event.type === "token") {

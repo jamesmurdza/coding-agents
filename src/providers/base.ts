@@ -27,15 +27,27 @@ export abstract class Provider implements IProvider {
   /** CLI install: one promise so install-at-creation and first run() share the same work */
   private _installPromise: Promise<void> | null = null
 
+  /** Resolves when initial setup (install + env + Codex login) has completed. Awaited by REPL before "ready". */
+  private _readyPromise: Promise<void> | null = null
+
   /** Env passed at creation so Codex login can run even when run() is called without env */
   private _creationEnv: Record<string, string> | undefined
+
+  /** Promise that resolves when the provider is ready (CLI installed, env set, Codex logged in if applicable). */
+  get ready(): Promise<void> {
+    return this._readyPromise ?? Promise.resolve()
+  }
 
   constructor(options: ProviderOptions = {}) {
     this._creationEnv = options.env
     if (options.sandbox) {
       this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
       if (!options.skipInstall) {
-        queueMicrotask(() => void this.ensureInstalled({ skipInstall: false }))
+        this._readyPromise = new Promise<void>((resolve, reject) => {
+          queueMicrotask(() => {
+            this.ensureSetup({}).then(resolve).catch(reject)
+          })
+        })
       }
     } else if (options.dangerouslyAllowLocalExecution) {
       this.allowLocalExecution = true
