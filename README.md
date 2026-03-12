@@ -64,8 +64,12 @@ const claude = createProvider("claude", { sandbox })
 ```typescript
 for await (const event of claude.run({ prompt: "Hello!" })) {
   if (event.type === "token") {
-    process.stdout.write(event.text)  // Real-time streaming!
+    process.stdout.write(event.text)
   }
+  if (event.type === "tool_start") {
+    console.log(`\n[Tool: ${event.name}]`)  // event.input is typed by name
+  }
+  if (event.type === "end") break
 }
 ```
 
@@ -81,37 +85,41 @@ await sandbox.destroy()
 import { createSandbox, createProvider } from "code-agent-sdk"
 
 async function main() {
-  // 1. Create sandbox
   const sandbox = createSandbox({
     apiKey: process.env.DAYTONA_API_KEY,
-    env: {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    },
+    env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
   })
-
   await sandbox.create()
 
   try {
-    // 2. Create provider
-    const claude = createProvider("claude", { sandbox })
+    const provider = createProvider("claude", { sandbox })
 
-    // 3. Stream response
-    console.log("Claude: ")
-    for await (const event of claude.run({ prompt: "Write a haiku about coding" })) {
+    for await (const event of provider.run({ prompt: "List /tmp then write /tmp/out.txt with 'done'" })) {
       switch (event.type) {
+        case "session":
+          console.log("Session:", event.id)
+          break
         case "token":
           process.stdout.write(event.text)
           break
         case "tool_start":
-          console.log(`\n[Using tool: ${event.name}]`)
+          if (event.name === "shell" && event.input?.command) {
+            console.log("\n[Running]", event.input.command)
+          } else if (event.name === "write" && event.input?.file_path) {
+            console.log("\n[Writing]", event.input.file_path)
+          } else {
+            console.log("\n[Tool]", event.name)
+          }
+          break
+        case "tool_end":
+          if (event.output) console.log("[Output]", event.output.slice(0, 80) + (event.output.length > 80 ? "…" : ""))
           break
         case "end":
-          console.log("\n")
+          console.log("\nDone.")
           break
       }
     }
   } finally {
-    // 4. Always cleanup
     await sandbox.destroy()
   }
 }
@@ -210,6 +218,27 @@ Tool names are normalized so you can branch on a single set across providers. Ea
 | **glob** | `{ pattern: string }` or similar – glob pattern to search. | Newline-separated paths or JSON list. |
 | **grep** | `{ pattern: string, path?: string }` – search pattern and optional path. | Matching lines or JSON. |
 | **shell** | `{ command: string }` – the shell command to run (e.g. `"ls -la /tmp"`). May include `description`. | Stdout/stderr of the command as a string. |
+
+The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). Import the types you need:
+
+```typescript
+import { createSandbox, createProvider } from "code-agent-sdk"
+
+for await (const event of provider.run({ prompt })) {
+  if (event.type === "tool_start" && event.name === "write") {
+    event.input?.file_path   // string
+    event.input?.content     // string | undefined
+  }
+  if (event.type === "tool_start" && event.name === "shell") {
+    event.input?.command     // string
+  }
+  if (event.type === "tool_end" && event.output !== undefined) {
+    // event.output: string
+  }
+}
+```
+
+Exported types: `ToolName`, `WriteToolInput`, `ReadToolInput`, `EditToolInput`, `GlobToolInput`, `GrepToolInput`, `ShellToolInput`, `ToolInputMap`.
 
 #### Example stream (write then end)
 

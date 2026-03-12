@@ -1,4 +1,5 @@
-import type { Event, ProviderCommand, ProviderName, ProviderOptions, RunOptions } from "../types/index.js"
+import type { Event, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import { createToolStartEvent } from "../types/events.js"
 import { safeJsonParse } from "../utils/json.js"
 import { Provider } from "./base.js"
 
@@ -101,7 +102,7 @@ export class GeminiProvider extends Provider {
 
     // Tool start
     if (json.type === "tool.start") {
-      return { type: "tool_start", name: json.name }
+      return createToolStartEvent(json.name, undefined)
     }
 
     // Tool delta

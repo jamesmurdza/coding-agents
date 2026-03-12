@@ -1,4 +1,6 @@
-import type { Event, ProviderCommand, ProviderName, ProviderOptions, RunOptions } from "../types/index.js"
+import type { Event, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import type { ShellToolInput, WriteToolInput } from "../types/events.js"
+import { createToolStartEvent } from "../types/events.js"
 import { safeJsonParse } from "../utils/json.js"
 import { Provider } from "./base.js"
 
@@ -182,11 +184,16 @@ export class CodexProvider extends Provider {
       const it = json.item
       const name = normalizeCodexToolName(it.type, it.tool)
       let input: unknown
-      if (it.type === "command_execution" && it.command != null) input = { command: it.command }
-      else if (it.type === "file_change") input = {}
-      else if (it.type === "mcp_tool_call" && it.arguments != null) input = it.arguments
-      else input = undefined
-      return { type: "tool_start", name, input }
+      if (it.type === "command_execution" && it.command != null) {
+        input = { command: it.command } satisfies ShellToolInput
+      } else if (it.type === "file_change") {
+        input = {}
+      } else if (it.type === "mcp_tool_call" && it.arguments != null) {
+        input = it.arguments
+      } else {
+        input = undefined
+      }
+      return createToolStartEvent(name, input)
     }
 
     // Item completed - tool/action result (current Codex schema)
@@ -207,9 +214,9 @@ export class CodexProvider extends Provider {
       // file_change: emit tool_start then tool_end (Codex only sends item.completed) so output matches Claude
       if (it.type === "file_change" && it.changes && it.changes.length > 0) {
         const c = it.changes[0]
-        const input = { file_path: c.path, kind: c.kind }
+        const input: WriteToolInput = { file_path: c.path, kind: c.kind as "add" | "update" }
         return [
-          { type: "tool_start", name: "write", input },
+          createToolStartEvent("write", input),
           { type: "tool_end", output: JSON.stringify(it.changes) },
         ]
       }
@@ -218,7 +225,7 @@ export class CodexProvider extends Provider {
 
     // Tool start (legacy)
     if (json.type === "item.tool.start") {
-      return { type: "tool_start", name: json.name }
+      return createToolStartEvent(normalizeCodexToolName("mcp_tool_call", json.name), undefined)
     }
 
     // Tool input delta (legacy)

@@ -1,4 +1,5 @@
-import type { Event, ProviderCommand, ProviderName, ProviderOptions, RunOptions } from "../types/index.js"
+import type { Event, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import { createToolStartEvent } from "../types/events.js"
 import { safeJsonParse } from "../utils/json.js"
 import { Provider } from "./base.js"
 
@@ -139,7 +140,7 @@ export class ClaudeProvider extends Provider {
             return { type: "token", text: block.text }
           }
           if (block.type === "tool_use" && block.name) {
-            return { type: "tool_start", name: normalizeClaudeToolName(block.name), input: block.input }
+            return createToolStartEvent(normalizeClaudeToolName(block.name), block.input)
           }
         }
       }
@@ -148,7 +149,7 @@ export class ClaudeProvider extends Provider {
 
     // Tool use event
     if (json.type === "tool_use" && "name" in json) {
-      return { type: "tool_start", name: normalizeClaudeToolName(json.name), input: json.input }
+      return createToolStartEvent(normalizeClaudeToolName(json.name), json.input)
     }
 
     // Tool result (standalone or inside user message)

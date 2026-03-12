@@ -1,4 +1,5 @@
-import type { Event, ProviderCommand, ProviderName, ProviderOptions, RunOptions } from "../types/index.js"
+import type { Event, ProviderCommand, ProviderName, RunOptions } from "../types/index.js"
+import { createToolStartEvent } from "../types/events.js"
 import { safeJsonParse } from "../utils/json.js"
 import { Provider } from "./base.js"
 
@@ -147,13 +148,14 @@ export class OpenCodeProvider extends Provider {
     // Tool call start
     if (json.type === "tool_call") {
       const toolName = json.part?.tool || "unknown"
-      return { type: "tool_start", name: toolName }
+      return createToolStartEvent(toolName, json.part?.args)
     }
 
     // Tool use (stream-json: emitted when tool completes; emit as tool_start so it appears in stream)
     if (json.type === "tool_use") {
       const toolName = json.part?.tool || "unknown"
-      return { type: "tool_start", name: toolName }
+      const raw = json.part as { state?: { input?: unknown } } | undefined
+      return createToolStartEvent(toolName, raw?.state?.input)
     }
 
     // Tool result - tool completed
