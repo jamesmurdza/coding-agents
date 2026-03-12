@@ -116,7 +116,10 @@ async function main() {
 
   const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
   const provider = createProvider(selectedProvider, { sandbox, env })
-  console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} provider ready.`)
+
+  console.log("Setting up (install CLI, login if needed)...")
+  await provider.ensureReady({ env, autoInstall: true })
+  console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready.`)
   console.log()
   console.log("Commands:")
   console.log(`  Type a prompt and press Enter to send to ${selectedProvider}`)

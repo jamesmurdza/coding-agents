@@ -94,4 +94,10 @@ export interface IProvider {
 
   /** Run the provider and emit events */
   run(options?: RunOptions): AsyncGenerator<Event, void, unknown>
+
+  /**
+   * Ensure the agent is ready to run (install CLI, Codex login, etc.).
+   * Call this at startup so the first run has no hidden setup.
+   */
+  ensureReady(options?: RunOptions): Promise<void>
 }

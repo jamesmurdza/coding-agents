@@ -4,7 +4,7 @@ import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions, Provi
 import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
 import { ensureCliInstalled } from "../utils/install.js"
 import type { CodeAgentSandbox } from "../types/index.js"
-import { adaptDaytonaSandbox } from "../sandbox/index.js"
+import { adaptSandbox } from "../sandbox/index.js"
 
 /**
  * Abstract base class for AI coding agent providers
@@ -29,12 +29,7 @@ export abstract class Provider implements IProvider {
 
   constructor(options: ProviderOptions = {}) {
     if (options.sandbox) {
-      const s = options.sandbox as CodeAgentSandbox & { process?: unknown; delete?: unknown }
-      if ("process" in s && typeof s.delete === "function") {
-        this.sandboxManager = adaptDaytonaSandbox(options.sandbox as import("@daytonaio/sdk").Sandbox, { env: options.env })
-      } else {
-        this.sandboxManager = options.sandbox as CodeAgentSandbox
-      }
+      this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
     } else if (options.dangerouslyAllowLocalExecution) {
       this.allowLocalExecution = true
     } else {
@@ -76,25 +71,20 @@ export abstract class Provider implements IProvider {
   }
 
   /**
-   * Run in a secure Daytona sandbox
+   * One-time setup: install CLI, set env, Codex login. Used by ensureReady() and runSandbox().
    */
-  private async *runSandbox(options: RunOptions): AsyncGenerator<Event, void, unknown> {
-    if (!this.sandboxManager) {
-      throw new Error("Sandbox manager not configured")
-    }
+  private async ensureSetup(options: RunOptions): Promise<void> {
+    if (!this.sandboxManager) return
 
-    // Ensure CLI is installed in sandbox
     const autoInstall = options.autoInstall ?? true
     if (autoInstall) {
       await this.sandboxManager.ensureProvider(this.name)
     }
 
-    // Set environment variables
     if (options.env) {
       this.sandboxManager.setEnvVars(options.env)
     }
 
-    // Codex requires login before first use
     if (
       this.name === "codex" &&
       options.env?.OPENAI_API_KEY &&
@@ -109,6 +99,27 @@ export abstract class Provider implements IProvider {
       )
       this._codexLoginDone = true
     }
+  }
+
+  /**
+   * Ensure the agent is ready to run (install CLI, Codex login, etc.).
+   * Call at startup so the first run has no hidden setup.
+   */
+  async ensureReady(options: RunOptions = {}): Promise<void> {
+    if (this.sandboxManager) {
+      await this.ensureSetup(options)
+    }
+  }
+
+  /**
+   * Run in a secure Daytona sandbox
+   */
+  private async *runSandbox(options: RunOptions): AsyncGenerator<Event, void, unknown> {
+    if (!this.sandboxManager) {
+      throw new Error("Sandbox manager not configured")
+    }
+
+    await this.ensureSetup(options)
 
     // Build the command
     const { cmd, args, env: cmdEnv } = this.getCommand(options)

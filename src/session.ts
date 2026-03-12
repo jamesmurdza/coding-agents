@@ -31,6 +31,11 @@ export class Session {
     return this.provider.getSessionId()
   }
 
+  /** Ensure the agent is ready (install CLI, Codex login, etc.). Call at startup. */
+  async ensureReady(overrides: Omit<RunOptions, "prompt"> = {}): Promise<void> {
+    await this.provider.ensureReady({ ...this.defaults, ...overrides })
+  }
+
   async *run(prompt: string, overrides: Omit<RunOptions, "prompt"> = {}): AsyncGenerator<Event, void, unknown> {
     yield* this.provider.run({ ...this.defaults, ...overrides, prompt })
   }
