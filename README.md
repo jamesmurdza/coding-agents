@@ -85,7 +85,7 @@ const sandbox = await daytona.create({
 })
 ```
 
-### 2. Clone a repo (Daytona Git SDK)
+### 2. Clone a repo
 
 Use the [Daytona Git SDK](https://www.daytona.io/docs/en/typescript-sdk/git/) to clone a repo at the start.
 
@@ -116,7 +116,7 @@ for await (const event of claudeSession.run("Hello!")) {
 }
 ```
 
-### 5. Push when finished (Daytona Git SDK)
+### 5. Push when finished
 
 Use the [Daytona Git SDK](https://www.daytona.io/docs/en/typescript-sdk/git/) to push your changes when you're done.
 
@@ -246,59 +246,6 @@ Tool names are normalized so you can branch on a single set across providers. Ea
 | **grep** | `{ pattern: string, path?: string }` | Raw string. | ✅ | — | ✅ |
 | **shell** | `{ command: string, description?: string }` | Stdout/stderr string. | ✅ | ✅ | ✅ |
 | *(other)* | `unknown` (SDK passes through raw provider payload) | Raw string. | ❓ | ❓ | ❓ |
-
-The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). You can import the input types for annotations or use narrowing alone:
-
-```typescript
-import {
-  type WriteToolInput,
-  type ShellToolInput,
-} from "code-agent-sdk"
-
-for await (const event of session.run(prompt)) {
-  if (event.type === "tool_start" && event.name === "write") {
-    const input = event.input  // typed as WriteToolInput | undefined
-    input?.file_path            // string
-    input?.content              // string | null
-    input?.kind                 // "add" | "update"
-  }
-  if (event.type === "tool_start" && event.name === "shell") {
-    const input = event.input   // typed as ShellToolInput | undefined
-    input?.command              // string
-  }
-  if (event.type === "tool_end" && event.output !== undefined) {
-    // event.output: string
-  }
-}
-```
-
-Other exported types: `ToolName`, `ReadToolInput`, `EditToolInput`, `GlobToolInput`, `GrepToolInput`, `ToolInputMap`.
-
-#### Example stream (write then end)
-
-```json
-{"type":"session","id":"abc-123"}
-{"type":"token","text":"I'll write the file.\n"}
-{"type":"tool_start","name":"write","input":{"file_path":"/tmp/hello.txt","content":"Hello","kind":"update"}}
-{"type":"tool_end","output":"File created successfully."}
-{"type":"token","text":"Done."}
-{"type":"end"}
-```
-
-### Convenience Methods
-
-```typescript
-// Collect full text response
-const text = await provider.collectText({ prompt: "Hello" })
-
-// Collect all events
-const events = await provider.collectEvents({ prompt: "Hello" })
-
-// Callback style
-await provider.runWithCallback((event) => {
-  console.log(event)
-}, { prompt: "Hello" })
-```
 
 ## Model Selection
 
