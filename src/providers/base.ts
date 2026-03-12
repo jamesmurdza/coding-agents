@@ -94,17 +94,10 @@ export abstract class Provider implements IProvider {
         : arg
     )].join(" ")
 
-    // Execute command and get full output
     const timeout = options.timeout ?? 120
-    const result = await this.sandboxManager.executeCommand(fullCommand, timeout)
 
-    if (result.exitCode !== 0) {
-      throw new Error(`Command failed with exit code ${result.exitCode}: ${result.output}`)
-    }
-
-    // Parse output line by line
-    const lines = result.output.split("\n").filter(line => line.trim())
-    for (const line of lines) {
+    // Use PTY streaming for real-time output
+    for await (const line of this.sandboxManager.executeCommandStream(fullCommand, timeout)) {
       const event = this.parse(line)
       if (!event) continue
 

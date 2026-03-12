@@ -1,4 +1,4 @@
-import { Daytona, Sandbox } from "@daytonaio/sdk"
+import { Daytona, Sandbox, PtyHandle } from "@daytonaio/sdk"
 import type { ProviderName, SandboxConfig } from "../types/index.js"
 import { getPackageName } from "../utils/install.js"
 
@@ -97,7 +97,7 @@ export class SandboxManager {
   }
 
   /**
-   * Execute a command in the sandbox
+   * Execute a command in the sandbox (blocking, returns full output)
    */
   async executeCommand(
     command: string,
@@ -126,21 +126,131 @@ export class SandboxManager {
   }
 
   /**
-   * Execute a command and stream output line by line
+   * Strip ANSI escape codes and terminal control sequences from text
+   */
+  private stripAnsi(text: string): string {
+    // Remove ANSI escape sequences (colors, cursor movement, etc.)
+    // eslint-disable-next-line no-control-regex
+    return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*\x07|\x1b[()][AB012]|\x1b\[[\?]?[0-9;]*[hlm]|\r/g, "")
+  }
+
+  /**
+   * Check if a line looks like valid JSON (for filtering PTY noise)
+   */
+  private isJsonLine(line: string): boolean {
+    const trimmed = line.trim()
+    return trimmed.startsWith("{") && trimmed.endsWith("}")
+  }
+
+  /**
+   * Execute a command via PTY and stream output line by line in real-time
    */
   async *executeCommandStream(
     command: string,
-    timeout: number = 120
+    _timeout: number = 120
   ): AsyncGenerator<string, void, unknown> {
-    // For now, execute the full command and yield lines
-    // Future: Use Daytona's streaming API when available
-    const result = await this.executeCommand(command, timeout)
+    const sandbox = await this.create()
 
-    // Split output into lines and yield each
-    const lines = result.output.split("\n")
-    for (const line of lines) {
-      if (line.trim()) {
-        yield line
+    // Build env export commands
+    const envExports = Object.entries(this.envVars)
+      .map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`)
+      .join("; ")
+
+    const fullCommand = envExports ? `${envExports}; ${command}` : command
+
+    // Buffer for accumulating data and extracting lines
+    let buffer = ""
+    const lineQueue: string[] = []
+    let resolveNext: ((value: IteratorResult<string, void>) => void) | null = null
+    let ptyDone = false
+    let ptyHandle: PtyHandle | null = null
+
+    // Create PTY session with streaming output
+    const ptyId = `pty-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    ptyHandle = await sandbox.process.createPty({
+      id: ptyId,
+      onData: (data: Uint8Array) => {
+        const text = new TextDecoder().decode(data)
+        buffer += text
+
+        // Extract complete lines
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? "" // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          // Strip ANSI codes and trim
+          const cleaned = this.stripAnsi(line).trim()
+
+          // Only yield lines that look like JSON (filter out shell prompts, etc.)
+          if (cleaned && this.isJsonLine(cleaned)) {
+            if (resolveNext) {
+              resolveNext({ value: cleaned, done: false })
+              resolveNext = null
+            } else {
+              lineQueue.push(cleaned)
+            }
+          }
+        }
+      },
+    })
+
+    try {
+      await ptyHandle.waitForConnection()
+
+      // Send the command
+      await ptyHandle.sendInput(`${fullCommand}\n`)
+
+      // Send exit to close the PTY when command completes
+      await ptyHandle.sendInput("exit\n")
+
+      // Wait for PTY to complete in background
+      const waitPromise = ptyHandle.wait().then(() => {
+        ptyDone = true
+        // Flush remaining buffer - check if it's JSON
+        const cleaned = this.stripAnsi(buffer).trim()
+        if (cleaned && this.isJsonLine(cleaned)) {
+          if (resolveNext) {
+            resolveNext({ value: cleaned, done: false })
+            resolveNext = null
+          } else {
+            lineQueue.push(cleaned)
+          }
+        }
+        // Signal done
+        if (resolveNext) {
+          resolveNext({ value: undefined, done: true })
+          resolveNext = null
+        }
+      })
+
+      // Yield lines as they come
+      while (true) {
+        if (lineQueue.length > 0) {
+          yield lineQueue.shift()!
+        } else if (ptyDone) {
+          break
+        } else {
+          // Wait for next line
+          const result = await new Promise<IteratorResult<string, void>>((resolve) => {
+            resolveNext = resolve
+            // Check again in case something was added
+            if (lineQueue.length > 0) {
+              resolve({ value: lineQueue.shift()!, done: false })
+              resolveNext = null
+            } else if (ptyDone) {
+              resolve({ value: undefined, done: true })
+              resolveNext = null
+            }
+          })
+          if (result.done) break
+          yield result.value
+        }
+      }
+
+      await waitPromise
+    } finally {
+      if (ptyHandle) {
+        await ptyHandle.disconnect()
       }
     }
   }
