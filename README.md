@@ -194,8 +194,6 @@ Each provider supports specifying a model via the `model` option. Pass the model
 
 ### Claude Models
 
-See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for available models.
-
 ```typescript
 const claude = createProvider("claude", { sandbox })
 
@@ -208,9 +206,9 @@ await claude.run({ prompt: "Hello", model: "haiku" })
 await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
 ```
 
-### Codex Models
+See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for all available models.
 
-See [Codex CLI models](https://developers.openai.com/codex/models) for available models.
+### Codex Models
 
 ```typescript
 const codex = createProvider("codex", { sandbox })
@@ -220,9 +218,9 @@ await codex.run({ prompt: "Hello", model: "o1" })
 await codex.run({ prompt: "Hello", model: "o3" })
 ```
 
-### Gemini Models
+See [Codex CLI models](https://developers.openai.com/codex/models) for all available models.
 
-See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for available models.
+### Gemini Models
 
 ```typescript
 const gemini = createProvider("gemini", { sandbox })
@@ -231,9 +229,9 @@ await gemini.run({ prompt: "Hello", model: "gemini-2.0-flash" })
 await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
 ```
 
-### OpenCode Models
+See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all available models.
 
-See [OpenCode models](https://opencode.ai/docs/models/) for available models and providers.
+### OpenCode Models
 
 ```typescript
 const opencode = createProvider("opencode", { sandbox })
@@ -248,6 +246,8 @@ await opencode.run({ prompt: "Hello", model: "openai/o3" })
 await opencode.run({ prompt: "Hello", model: "anthropic/claude-sonnet" })
 await opencode.run({ prompt: "Hello", model: "google/gemini-2.0-flash" })
 ```
+
+See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.
 
 ## Environment Variables
 
