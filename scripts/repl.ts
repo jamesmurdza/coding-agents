@@ -149,7 +149,7 @@ async function main() {
       }
 
       if (trimmed === "/clear") {
-        session.provider.sessionId = null
+        session.sessionId = null
         console.log("Session cleared.\n")
         prompt()
         return

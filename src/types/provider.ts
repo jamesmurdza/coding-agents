@@ -54,6 +54,9 @@ export interface RunOptions {
   model?: string
 }
 
+/** Default run options merged into every run (used by createSession) */
+export type RunDefaults = Partial<Omit<RunOptions, "prompt">>
+
 /** Options for creating a provider */
 export interface ProviderOptions {
   /**
@@ -73,6 +76,9 @@ export interface ProviderOptions {
    * ⚠️ DANGEROUS: Only use this if you trust the code being executed.
    */
   dangerouslyAllowLocalExecution?: boolean
+
+  /** Defaults merged into every run() call (model, timeout, sessionId, env). Set by createSession. */
+  runDefaults?: RunDefaults
 }
 
 /** Event handler callback */
@@ -98,6 +104,6 @@ export interface IProvider {
   /** Resolves when CLI install and setup (env, Codex login) have completed. Await before first run if you want "ready" UX. */
   readonly ready: Promise<void>
 
-  /** Run the provider and emit events */
-  run(options?: RunOptions): AsyncGenerator<Event, void, unknown>
+  /** Run the provider and emit events. Pass a prompt string or full RunOptions. */
+  run(promptOrOptions?: string | RunOptions): AsyncGenerator<Event, void, unknown>
 }

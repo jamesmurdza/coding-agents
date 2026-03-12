@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process"
 import * as readline from "node:readline"
-import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions, ProviderOptions } from "../types/index.js"
+import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions, ProviderOptions, RunDefaults } from "../types/index.js"
 import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
 import { ensureCliInstalled } from "../utils/install.js"
 import type { CodeAgentSandbox } from "../types/index.js"
@@ -30,12 +30,16 @@ export abstract class Provider implements IProvider {
   /** Env passed at creation; used for setup and when run() omits env */
   private _creationEnv: Record<string, string> | undefined
 
+  /** Defaults merged into every run (model, timeout, sessionId, env). Set by createSession. */
+  private _runDefaults: RunDefaults = {}
+
   get ready(): Promise<void> {
     return this._readyPromise ?? Promise.resolve()
   }
 
   constructor(options: ProviderOptions = {}) {
     this._creationEnv = options.env
+    this._runDefaults = options.runDefaults ?? {}
     if (options.sandbox) {
       this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
       if (!options.skipInstall) {
@@ -71,9 +75,14 @@ export abstract class Provider implements IProvider {
   abstract parse(line: string): Event | Event[] | null
 
   /**
-   * Run the provider and yield events as an async generator
+   * Run the provider and yield events. Pass a prompt string or full RunOptions.
+   * When created via createSession, runDefaults are merged in (e.g. model, timeout).
    */
-  async *run(options: RunOptions = {}): AsyncGenerator<Event, void, unknown> {
+  async *run(promptOrOptions: string | RunOptions = {}): AsyncGenerator<Event, void, unknown> {
+    const options: RunOptions =
+      typeof promptOrOptions === "string"
+        ? { ...this._runDefaults, prompt: promptOrOptions }
+        : { ...this._runDefaults, ...promptOrOptions }
     if (this.sandboxManager) {
       yield* this.runSandbox(options)
     } else if (this.allowLocalExecution) {
@@ -228,9 +237,9 @@ export abstract class Provider implements IProvider {
    */
   async runWithCallback(
     callback: (event: Event) => void | Promise<void>,
-    options: RunOptions = {}
+    promptOrOptions: string | RunOptions = {}
   ): Promise<void> {
-    for await (const event of this.run(options)) {
+    for await (const event of this.run(promptOrOptions)) {
       await callback(event)
     }
   }
@@ -238,9 +247,9 @@ export abstract class Provider implements IProvider {
   /**
    * Collect all events from a run into an array
    */
-  async collectEvents(options: RunOptions = {}): Promise<Event[]> {
+  async collectEvents(promptOrOptions: string | RunOptions = {}): Promise<Event[]> {
     const events: Event[] = []
-    for await (const event of this.run(options)) {
+    for await (const event of this.run(promptOrOptions)) {
       events.push(event)
     }
     return events
@@ -249,9 +258,9 @@ export abstract class Provider implements IProvider {
   /**
    * Collect the full text response from a run
    */
-  async collectText(options: RunOptions = {}): Promise<string> {
+  async collectText(promptOrOptions: string | RunOptions = {}): Promise<string> {
     let text = ""
-    for await (const event of this.run(options)) {
+    for await (const event of this.run(promptOrOptions)) {
       if (event.type === "token") {
         text += event.text
       }

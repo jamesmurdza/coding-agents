@@ -1,11 +1,8 @@
-import type { Event, ProviderName, ProviderOptions, RunOptions } from "./types/index.js"
+import type { ProviderName, ProviderOptions, RunDefaults } from "./types/index.js"
 import { createProvider } from "./factory.js"
 import type { Provider } from "./providers/base.js"
 
-/**
- * Convenience wrapper around a Provider with default run options.
- * This makes it easier to treat a provider instance as a "session".
- */
+/** Options for createSession (provider options + run defaults like model, timeout). */
 export interface SessionOptions extends ProviderOptions {
   model?: string
   sessionId?: string
@@ -14,32 +11,14 @@ export interface SessionOptions extends ProviderOptions {
   env?: Record<string, string>
 }
 
-export class Session {
-  readonly name: ProviderName
-  readonly provider: Provider
-
-  private defaults: Omit<RunOptions, "prompt"> = {}
-
-  constructor(name: ProviderName, options: SessionOptions, provider: Provider) {
-    this.name = name
-    this.provider = provider
-    const { model, sessionId, timeout, skipInstall, env } = options
-    this.defaults = { model, sessionId, timeout, skipInstall, env }
-  }
-
-  getSessionId(): string | null {
-    return this.provider.getSessionId()
-  }
-
-  async *run(prompt: string): AsyncGenerator<Event, void, unknown> {
-    yield* this.provider.run({ ...this.defaults, prompt })
-  }
-}
-
-export async function createSession(name: ProviderName, options: SessionOptions): Promise<Session> {
+/**
+ * Create a session: a provider with run defaults (model, timeout, env) set at creation.
+ * Returns the provider; call session.run(prompt) with just the prompt string.
+ */
+export async function createSession(name: ProviderName, options: SessionOptions): Promise<Provider> {
   const { model, sessionId, timeout, skipInstall, env, ...providerOptions } = options
-  const provider = createProvider(name, { ...providerOptions, skipInstall, env })
+  const runDefaults: RunDefaults = { model, sessionId, timeout, skipInstall, env }
+  const provider = createProvider(name, { ...providerOptions, skipInstall, env, runDefaults })
   await provider.ready
-  return new Session(name, options, provider)
+  return provider
 }
-

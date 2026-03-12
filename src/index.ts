@@ -42,6 +42,7 @@ export type {
   ProviderName,
   ProviderCommand,
   RunOptions,
+  RunDefaults,
   ProviderOptions,
   EventHandler,
   IProvider,
@@ -68,11 +69,8 @@ export {
   isValidProvider,
 } from "./factory.js"
 
-// Session wrapper (recommended for nicer defaults)
-export {
-  Session,
-  createSession,
-} from "./session.js"
+// Session (provider with run defaults; recommended entry point)
+export { createSession, type SessionOptions } from "./session.js"
 
 // Utilities
 export {

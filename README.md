@@ -85,7 +85,17 @@ const sandbox = await daytona.create({
 })
 ```
 
-### 2. Create a session
+### 2. Clone a repo (Daytona Git SDK)
+
+Use the [Daytona Git SDK](https://www.daytona.io/docs/en/typescript-sdk/git/) to clone a repo at the start.
+
+```typescript
+const repoPath = "workspace/repo"
+await sandbox.git.clone("https://github.com/user/repo.git", repoPath)
+// For private repos: clone(url, path, branch?, commitId?, username?, password?)
+```
+
+### 3. Create a session
 
 ```typescript
 const claudeSession = await createSession("claude", {
@@ -96,7 +106,7 @@ const claudeSession = await createSession("claude", {
 })
 ```
 
-### 3. Stream responses
+### 4. Stream responses
 
 ```typescript
 for await (const event of claudeSession.run("Hello!")) {
@@ -106,7 +116,16 @@ for await (const event of claudeSession.run("Hello!")) {
 }
 ```
 
-### 4. Cleanup
+### 5. Push when finished (Daytona Git SDK)
+
+Use the [Daytona Git SDK](https://www.daytona.io/docs/en/typescript-sdk/git/) to push your changes when you're done.
+
+```typescript
+await sandbox.git.push(repoPath)
+// For private repos: push(path, username?, password?)
+```
+
+### 6. Cleanup
 
 ```typescript
 await sandbox.delete()
