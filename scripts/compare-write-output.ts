@@ -10,23 +10,42 @@ const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY!
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!
 
-const PROMPT =
-  "Write a file called /tmp/test.txt with the content 'Hello World'. Use the write/file tool only—do not run any shell commands."
+const SCENARIOS: { name: string; prompt: string }[] = [
+  {
+    name: "write",
+    prompt:
+      "Write a file called /tmp/test.txt with the content 'Hello World'. Use the write/file tool only—do not run any shell commands.",
+  },
+  {
+    name: "read",
+    prompt:
+      "Create /tmp/readme.txt with content 'Hello' using the write tool, then read /tmp/readme.txt using the read tool and tell me its contents. Use only write and read tools, no shell.",
+  },
+  {
+    name: "shell",
+    prompt: "Run the shell command 'echo hello' and tell me the output. Use only the shell/command execution tool.",
+  },
+]
 
 function normalize(e: Event): string {
   if (e.type === "session") return `session:${e.id ? "id" : ""}`
   if (e.type === "token") return "token"
   if (e.type === "tool_start") {
     const input = (e as { input?: unknown }).input
-    const hasPath = input && typeof input === "object" && ("file_path" in input || "path" in input)
-    return `tool_start:${(e as { name: string }).name}:${hasPath ? "path" : "no-path"}`
+    const name = (e as { name: string }).name
+    let hint = "other"
+    if (input && typeof input === "object") {
+      if ("file_path" in input || "path" in input) hint = "path"
+      else if ("command" in input) hint = "command"
+    }
+    return `tool_start:${name}:${hint}`
   }
   if (e.type === "tool_end") return "tool_end"
   if (e.type === "end") return "end"
   return (e as { type: string }).type
 }
 
-async function collectEvents(providerType: "claude" | "codex"): Promise<Event[]> {
+async function collectEvents(providerType: "claude" | "codex", prompt: string): Promise<Event[]> {
   const envKey = providerType === "claude" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
   const apiKey = providerType === "claude" ? ANTHROPIC_API_KEY : OPENAI_API_KEY
   const sandbox = createSandbox({ apiKey: DAYTONA_API_KEY, env: { [envKey]: apiKey } })
@@ -38,7 +57,7 @@ async function collectEvents(providerType: "claude" | "codex"): Promise<Event[]>
     }
     const provider = createProvider(providerType, { sandbox })
     const events: Event[] = []
-    for await (const e of provider.run({ prompt: PROMPT, autoInstall: providerType !== "codex" })) {
+    for await (const e of provider.run({ prompt, autoInstall: providerType !== "codex" })) {
       events.push(e)
     }
     return events
@@ -47,29 +66,32 @@ async function collectEvents(providerType: "claude" | "codex"): Promise<Event[]>
   }
 }
 
+function structure(events: Event[]): string[] {
+  return events.map(normalize).filter((x) => x !== "token")
+}
+
 async function main() {
-  console.log("Running Claude...")
-  const claudeEvents = await collectEvents("claude")
-  console.log("Running Codex...")
-  const codexEvents = await collectEvents("codex")
-
-  const a = claudeEvents.map(normalize)
-  const b = codexEvents.map(normalize)
-  // Compare structure: ignore tokens (order and count can differ)
-  const aStruct = a.filter((x) => x !== "token")
-  const bStruct = b.filter((x) => x !== "token")
-
-  const same = aStruct.length === bStruct.length && aStruct.every((v, i) => v === bStruct[i])
-  if (same) {
-    console.log("OK: Claude and Codex produce the same normalized output.")
-    console.log("Structure:", aStruct.join(" → "))
-    process.exit(0)
+  let failed = false
+  for (const scenario of SCENARIOS) {
+    process.stdout.write(`Scenario "${scenario.name}": Claude... `)
+    const claudeEvents = await collectEvents("claude", scenario.prompt)
+    process.stdout.write("Codex... ")
+    const codexEvents = await collectEvents("codex", scenario.prompt)
+    const a = structure(claudeEvents)
+    const b = structure(codexEvents)
+    const same = a.length === b.length && a.every((v, i) => v === b[i])
+    if (same) {
+      console.log("OK")
+    } else {
+      console.log("DIFF")
+      console.error("  Claude:", a.join(" → "))
+      console.error("  Codex:", b.join(" → "))
+      failed = true
+    }
   }
-
-  console.error("DIFF: Claude vs Codex normalized event sequence (structure, tokens omitted)")
-  console.error("Claude:", aStruct.join(" → "))
-  console.error("Codex:", bStruct.join(" → "))
-  process.exit(1)
+  if (failed) process.exit(1)
+  console.log("All scenarios: Claude and Codex produce the same normalized output.")
+  process.exit(0)
 }
 
 main().catch((err) => {

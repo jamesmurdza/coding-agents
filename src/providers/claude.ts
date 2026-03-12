@@ -42,14 +42,36 @@ interface ClaudeToolResult {
   type: "tool_result"
   tool_use_id: string
   result?: string
+  content?: string | Array<{ type: string; text?: string }>
+}
+
+interface ClaudeUserMessage {
+  type: "user"
+  message?: { content?: Array<{ type: string; tool_use_id?: string; content?: string | Array<{ type: string; text?: string }> }> }
 }
 
 type ClaudeEvent =
   | ClaudeSystemInit
   | ClaudeAssistantMessage
+  | ClaudeUserMessage
   | ClaudeResult
   | ClaudeToolUse
   | ClaudeToolResult
+
+// Canonical names: read, edit, write, glob, grep, shell (full set, lowercase)
+const CLAUDE_TOOL_NAME_MAP: Record<string, string> = {
+  Write: "write",
+  Read: "read",
+  Edit: "edit",
+  Glob: "glob",
+  Grep: "grep",
+  Bash: "shell",
+  WebSearch: "web_search",
+}
+
+function normalizeClaudeToolName(name: string): string {
+  return CLAUDE_TOOL_NAME_MAP[name] ?? name.toLowerCase()
+}
 
 /**
  * Claude Code CLI provider
@@ -117,8 +139,7 @@ export class ClaudeProvider extends Provider {
             return { type: "token", text: block.text }
           }
           if (block.type === "tool_use" && block.name) {
-            const name = block.name === "Write" ? "write" : block.name
-            return { type: "tool_start", name, input: block.input }
+            return { type: "tool_start", name: normalizeClaudeToolName(block.name), input: block.input }
           }
         }
       }
@@ -127,13 +148,30 @@ export class ClaudeProvider extends Provider {
 
     // Tool use event
     if (json.type === "tool_use" && "name" in json) {
-      const name = json.name === "Write" ? "write" : json.name
-      return { type: "tool_start", name, input: json.input }
+      return { type: "tool_start", name: normalizeClaudeToolName(json.name), input: json.input }
     }
 
-    // Tool result marks end of tool use
+    // Tool result (standalone or inside user message)
+    function toolResultOutput(obj: ClaudeToolResult): string | undefined {
+      let out = obj.result
+      if (out === undefined && obj.content !== undefined) {
+        if (typeof obj.content === "string") out = obj.content
+        else if (Array.isArray(obj.content) && obj.content[0]?.text) out = obj.content[0].text
+      }
+      return out
+    }
     if (json.type === "tool_result") {
-      return { type: "tool_end", output: json.result }
+      return { type: "tool_end", output: toolResultOutput(json) }
+    }
+    if (json.type === "user" && json.message?.content) {
+      for (const block of json.message.content) {
+        if (block.type === "tool_result") {
+          let out: string | undefined
+          if (typeof block.content === "string") out = block.content
+          else if (Array.isArray(block.content) && block.content[0]?.text) out = block.content[0].text
+          return { type: "tool_end", output: out }
+        }
+      }
     }
 
     // Result event marks end of interaction
