@@ -194,7 +194,7 @@ Each provider supports specifying a model via the `model` option. Pass the model
 
 ### Claude Models
 
-See [Claude Code documentation](https://docs.anthropic.com/en/docs/claude-code) for available models.
+See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for available models.
 
 ```typescript
 const claude = createProvider("claude", { sandbox })
@@ -210,7 +210,7 @@ await claude.run({ prompt: "Hello", model: "claude-sonnet-4-5-20250929" })
 
 ### Codex Models
 
-See [Codex CLI documentation](https://developers.openai.com/codex/cli) for available models.
+See [Codex CLI models](https://developers.openai.com/codex/models) for available models.
 
 ```typescript
 const codex = createProvider("codex", { sandbox })
@@ -222,7 +222,7 @@ await codex.run({ prompt: "Hello", model: "o3" })
 
 ### Gemini Models
 
-See [Gemini CLI documentation](https://geminicli.com/docs/) for available models.
+See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for available models.
 
 ```typescript
 const gemini = createProvider("gemini", { sandbox })
@@ -233,7 +233,7 @@ await gemini.run({ prompt: "Hello", model: "gemini-1.5-pro" })
 
 ### OpenCode Models
 
-See [OpenCode documentation](https://opencode.ai/docs/) for available models and providers.
+See [OpenCode models](https://opencode.ai/docs/models/) for available models and providers.
 
 ```typescript
 const opencode = createProvider("opencode", { sandbox })
