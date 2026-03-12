@@ -4,7 +4,11 @@
  */
 import { createSandbox } from "../src/index.js"
 
-const DAYTONA_API_KEY = "REDACTED_DAYTONA_KEY"
+const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
+if (!DAYTONA_API_KEY) {
+  console.error("DAYTONA_API_KEY environment variable required")
+  process.exit(1)
+}
 
 async function main() {
   console.log("Creating sandbox...")

@@ -4,8 +4,13 @@
  */
 import { createSandbox, createProvider } from "../src/index.js"
 
-const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY || "REDACTED_DAYTONA_KEY"
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "REDACTED_ANTHROPIC_KEY"
+const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY
+
+if (!DAYTONA_API_KEY || !ANTHROPIC_API_KEY) {
+  console.error("Required environment variables: DAYTONA_API_KEY, ANTHROPIC_API_KEY")
+  process.exit(1)
+}
 
 async function main() {
   console.log("=".repeat(60))
