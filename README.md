@@ -210,27 +210,34 @@ type Event =
 
 Tool names are normalized so you can branch on a single set across providers. Each tool has a defined **tool_start input** and **tool_end output** shape.
 
-| Tool     | tool_start `input` | tool_end `output` |
-|----------|--------------------|--------------------|
-| **write** | `{ file_path: string, content: string }` (Claude). Codex may also include `kind: "add" \| "update"`. | Success message or JSON array of `{ path, kind }` (Codex). |
-| **read** | `{ path: string }` or `{ file_path: string }` – path to the file to read. | File contents as a string. |
-| **edit** | Patch/edit payload (e.g. path + diff or instructions). Shape may vary by provider. | Success message or patch result. |
-| **glob** | `{ pattern: string }` or similar – glob pattern to search. | Newline-separated paths or JSON list. |
-| **grep** | `{ pattern: string, path?: string }` – search pattern and optional path. | Matching lines or JSON. |
-| **shell** | `{ command: string }` – the shell command to run (e.g. `"ls -la /tmp"`). May include `description`. | Stdout/stderr of the command as a string. |
+| Tool     | tool_start `input` (normalized) | tool_end `output` |
+|----------|---------------------------------|--------------------|
+| **write** | `{ file_path: string, content?: string, kind?: "add" \| "update" }` | Raw string (success message or JSON). |
+| **read** | `{ file_path: string }` | File contents string. |
+| **edit** | `{ file_path: string, ... }` | Raw string. |
+| **glob** | `{ pattern: string }` | Raw string (paths or JSON). |
+| **grep** | `{ pattern: string, path?: string }` | Raw string. |
+| **shell** | `{ command: string, description?: string }` | Stdout/stderr string. |
 
-The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). Import the types you need:
+The SDK emits typed events: when you narrow on `event.name`, `event.input` is typed (e.g. `"write"` → `WriteToolInput`, `"shell"` → `ShellToolInput`). You can import the input types for annotations or use narrowing alone:
 
 ```typescript
-import { createSandbox, createProvider } from "code-agent-sdk"
+import {
+  createSandbox,
+  createProvider,
+  type WriteToolInput,
+  type ShellToolInput,
+} from "code-agent-sdk"
 
 for await (const event of provider.run({ prompt })) {
   if (event.type === "tool_start" && event.name === "write") {
-    event.input?.file_path   // string
-    event.input?.content     // string | undefined
+    const input = event.input  // typed as WriteToolInput | undefined
+    input?.file_path            // string
+    input?.content              // string | undefined
   }
   if (event.type === "tool_start" && event.name === "shell") {
-    event.input?.command     // string
+    const input = event.input   // typed as ShellToolInput | undefined
+    input?.command              // string
   }
   if (event.type === "tool_end" && event.output !== undefined) {
     // event.output: string
@@ -238,7 +245,7 @@ for await (const event of provider.run({ prompt })) {
 }
 ```
 
-Exported types: `ToolName`, `WriteToolInput`, `ReadToolInput`, `EditToolInput`, `GlobToolInput`, `GrepToolInput`, `ShellToolInput`, `ToolInputMap`.
+Other exported types: `ToolName`, `ReadToolInput`, `EditToolInput`, `GlobToolInput`, `GrepToolInput`, `ToolInputMap`.
 
 #### Example stream (write then end)
 

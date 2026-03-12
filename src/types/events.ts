@@ -24,30 +24,26 @@ export interface WriteToolInput {
   kind?: "add" | "update"
 }
 
-/** Input for the read tool (path to file). */
+/** Input for the read tool (path to file). Canonical: always file_path. */
 export interface ReadToolInput {
-  path?: string
-  file_path?: string
+  file_path: string
 }
 
-/** Input for the edit tool (patch/edit file). Shape may vary by provider. */
+/** Input for the edit tool (patch/edit file). Canonical: file_path + optional rest. */
 export interface EditToolInput {
-  path?: string
-  file_path?: string
+  file_path: string
   [key: string]: unknown
 }
 
 /** Input for the glob tool (file search by pattern). */
 export interface GlobToolInput {
   pattern: string
-  [key: string]: unknown
 }
 
 /** Input for the grep tool (content search). */
 export interface GrepToolInput {
   pattern: string
   path?: string
-  [key: string]: unknown
 }
 
 /** Input for the shell tool (run a command). */
@@ -96,20 +92,24 @@ export function createToolStartEvent(name: ToolName | string, rawInput?: unknown
     const path = rawInput.file_path ?? rawInput.path
     if (typeof path === "string") {
       input = { file_path: path } satisfies ReadToolInput
-    } else {
-      input = { path: rawInput.path, file_path: rawInput.file_path } as ReadToolInput
+    }
+  } else if (name === "edit" && isObject(rawInput)) {
+    const path = rawInput.file_path ?? rawInput.path
+    if (typeof path === "string") {
+      input = { file_path: path, ...rawInput } as EditToolInput
     }
   } else if (name === "shell" && isObject(rawInput) && typeof rawInput.command === "string") {
     input = {
       command: rawInput.command,
       description: typeof rawInput.description === "string" ? rawInput.description : undefined,
     } satisfies ShellToolInput
-  } else if (name === "edit" && isObject(rawInput)) {
-    input = rawInput as EditToolInput
   } else if (name === "glob" && isObject(rawInput) && typeof rawInput.pattern === "string") {
-    input = rawInput as GlobToolInput
+    input = { pattern: rawInput.pattern } satisfies GlobToolInput
   } else if (name === "grep" && isObject(rawInput) && typeof rawInput.pattern === "string") {
-    input = { pattern: rawInput.pattern, path: rawInput.path as string | undefined } as GrepToolInput
+    input = {
+      pattern: rawInput.pattern,
+      path: typeof rawInput.path === "string" ? rawInput.path : undefined,
+    } satisfies GrepToolInput
   }
   return { type: "tool_start", name, input } as ToolStartEvent
 }
