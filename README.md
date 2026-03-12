@@ -15,7 +15,7 @@ A TypeScript SDK for interacting with AI coding agents (Claude, Codex, OpenCode,
 | Provider | Status | CLI | Authentication |
 |----------|--------|-----|----------------|
 | Claude | **Tested** | `claude` | `ANTHROPIC_API_KEY` env var |
-| Codex | **Tested** | `codex` | `echo $KEY \| codex login --with-api-key` |
+| Codex | **Tested** | `codex` | `OPENAI_API_KEY` env var |
 | OpenCode | Implemented | `opencode` | `OPENCODE_API_KEY` env var |
 | Gemini | Implemented | `gemini` | `GOOGLE_API_KEY` env var |
 
@@ -37,7 +37,6 @@ const sandbox = createSandbox({
   apiKey: process.env.DAYTONA_API_KEY,
   env: {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   },
 })
 
@@ -77,7 +76,6 @@ async function main() {
     apiKey: process.env.DAYTONA_API_KEY,
     env: {
       ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     },
   })
 
