@@ -111,13 +111,22 @@ async function main() {
     apiKey: DAYTONA_API_KEY,
     env: {
       // Pass the appropriate API key to the sandbox
-      [providerKeyConfig.envVar]: PROVIDER_API_KEY,
+      [providerKeyConfig.envVar]: PROVIDER_API_KEY!,
     },
   })
 
   await sandbox.create()
   console.log("Sandbox created!")
   console.log()
+
+  // Provider-specific setup inside sandbox
+  if (selectedProvider === "codex") {
+    console.log("Preparing Codex CLI (install + login)...")
+    await sandbox.executeCommand("npm install -g @openai/codex", 120)
+    await sandbox.executeCommand(`echo "${PROVIDER_API_KEY}" | codex login --with-api-key 2>&1`, 30)
+    console.log("Codex CLI ready.")
+    console.log()
+  }
 
   const provider = createProvider(selectedProvider, { sandbox })
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} provider ready.`)
@@ -159,11 +168,27 @@ async function main() {
       }
 
       try {
+        const beforeSession = provider.sessionId
+        if (beforeSession) {
+          console.log(`\x1b[90m[Session: ${beforeSession}]\x1b[0m`)
+        }
+
         // Show thinking indicator
         process.stdout.write("\x1b[90mThinking...\x1b[0m")
         let firstToken = true
+        let sawAnyOutput = false
 
-        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, autoInstall: false })) {
+        for await (const event of provider.run({ prompt: trimmed, model: selectedModel, autoInstall: true, timeout: 120 })) {
+          // Always show session events (helpful for debugging resume/no-output cases)
+          if (event.type === "session") {
+            if (firstToken) {
+              process.stdout.write("\r\x1b[K")
+              firstToken = false
+            }
+            sawAnyOutput = true
+            console.log(`\x1b[90m[Session started: ${event.id}]\x1b[0m`)
+            continue
+          }
           if (event.type === "token") {
             if (firstToken) {
               // Clear "Thinking..." and show provider's response
@@ -171,20 +196,55 @@ async function main() {
               process.stdout.write(`\r\x1b[K\x1b[33m${providerLabel}:\x1b[0m `)
               firstToken = false
             }
+            sawAnyOutput = true
             process.stdout.write(event.text)
           } else if (event.type === "tool_start") {
             if (firstToken) {
               process.stdout.write("\r\x1b[K")
               firstToken = false
             }
+            sawAnyOutput = true
             process.stdout.write(`\x1b[90m[Using tool: ${event.name}]\x1b[0m\n`)
+            if (event.input !== undefined) {
+              process.stdout.write(`\x1b[90m[Tool input: ${JSON.stringify(event.input)}]\x1b[0m\n`)
+            }
           } else if (event.type === "tool_end") {
+            sawAnyOutput = true
             process.stdout.write(`\x1b[90m[Tool completed]\x1b[0m\n`)
+            if (event.output !== undefined) {
+              const out = event.output.length > 400 ? event.output.slice(0, 400) + "…(truncated)" : event.output
+              process.stdout.write(`\x1b[90m[Tool output: ${JSON.stringify(out)}]\x1b[0m\n`)
+            }
+          } else if (event.type === "end") {
+            if (firstToken) {
+              // Clear "Thinking..." even if no tokens/tools were emitted
+              process.stdout.write("\r\x1b[K")
+              firstToken = false
+            }
+            if (!sawAnyOutput) {
+              process.stdout.write("\x1b[33m(no output)\x1b[0m")
+            }
+            break
+          }
+        }
+
+        // If the provider ended without emitting end/tokens/tools, clear the indicator.
+        if (firstToken) {
+          process.stdout.write("\r\x1b[K")
+          if (!sawAnyOutput) {
+            process.stdout.write("\x1b[33m(no output)\x1b[0m")
           }
         }
 
         console.log("\n")
+
+        const afterSession = provider.sessionId
+        if (afterSession && afterSession !== beforeSession) {
+          console.log(`\x1b[90m[Session now: ${afterSession}]\x1b[0m\n`)
+        }
       } catch (error) {
+        // Clear thinking indicator on error
+        process.stdout.write("\r\x1b[K")
         console.error("\n\x1b[31mError:\x1b[0m", error)
         console.log()
       }

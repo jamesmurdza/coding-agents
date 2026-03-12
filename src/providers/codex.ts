@@ -124,6 +124,7 @@ export class CodexProvider extends Provider {
   }
 
   getCommand(options?: RunOptions): ProviderCommand {
+    const session = this.sessionId || options?.sessionId
     const args: string[] = []
 
     // Use exec subcommand for non-interactive mode with JSON output
@@ -143,11 +144,13 @@ export class CodexProvider extends Provider {
       args.push("--model", options.model)
     }
 
-    if (this.sessionId || options?.sessionId) {
-      // For resuming, we need a different command structure
-      args.push("resume", this.sessionId || options!.sessionId!)
-    } else if (options?.prompt) {
-      // Add the prompt
+    if (session) {
+      // Resume an existing session in headless mode (exec subcommand)
+      args.push("resume", session)
+    }
+
+    // Add prompt as trailing argument
+    if (options?.prompt) {
       args.push(options.prompt)
     }
 
