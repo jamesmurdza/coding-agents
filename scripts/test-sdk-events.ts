@@ -7,10 +7,11 @@ import { createSandbox, createProvider } from "../src/index.js"
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY!
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY!
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY!
 
 const PROMPT = "Write a file called /tmp/test.txt with the content 'Hello World'. Just write the file, nothing else."
 
-async function testProvider(name: string, providerType: "claude" | "codex" | "opencode", apiKey: string, envKey: string) {
+async function testProvider(name: string, providerType: "claude" | "codex" | "opencode" | "gemini", apiKey: string, envKey: string) {
   console.log("\n" + "=".repeat(70))
   console.log(`  ${name.toUpperCase()} - SDK Events for Write File`)
   console.log("=".repeat(70))
@@ -64,6 +65,10 @@ async function main() {
 
   if (provider === "opencode" || provider === "all") {
     await testProvider("OpenCode", "opencode", OPENAI_API_KEY, "OPENAI_API_KEY")
+  }
+
+  if ((provider === "gemini" || provider === "all") && GEMINI_API_KEY) {
+    await testProvider("Gemini", "gemini", GEMINI_API_KEY, "GOOGLE_API_KEY")
   }
 
   console.log("\n" + "=".repeat(70))

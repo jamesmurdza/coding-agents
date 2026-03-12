@@ -18,6 +18,8 @@ export interface TokenEvent {
 export interface ToolStartEvent {
   type: "tool_start"
   name: string
+  /** Tool arguments/input when provided by the CLI */
+  input?: unknown
 }
 
 /** Tool delta event - partial input being streamed to a tool */
@@ -29,6 +31,8 @@ export interface ToolDeltaEvent {
 /** Tool end event - indicates tool invocation is complete */
 export interface ToolEndEvent {
   type: "tool_end"
+  /** Tool result/output when provided by the CLI */
+  output?: string
 }
 
 /** End event - indicates the message/turn is complete */

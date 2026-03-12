@@ -37,7 +37,7 @@ describe("install utilities", () => {
     })
 
     it("should return correct package for gemini", () => {
-      expect(getPackageName("gemini")).toBe("@anthropic-ai/gemini-cli")
+      expect(getPackageName("gemini")).toBe("@google/gemini-cli")
     })
   })
 

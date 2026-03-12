@@ -41,6 +41,7 @@ interface ClaudeToolUse {
 interface ClaudeToolResult {
   type: "tool_result"
   tool_use_id: string
+  result?: string
 }
 
 type ClaudeEvent =
@@ -70,6 +71,9 @@ export class ClaudeProvider extends Provider {
 
     // Add output format flag for JSON streaming (requires --verbose)
     args.push("--output-format", "stream-json", "--verbose")
+
+    // Skip permission prompts when already running in a sandbox
+    args.push("--dangerously-skip-permissions")
 
     // Add model if specified (e.g., "sonnet", "opus", "claude-sonnet-4-5-20250929")
     if (options?.model) {
@@ -113,7 +117,7 @@ export class ClaudeProvider extends Provider {
             return { type: "token", text: block.text }
           }
           if (block.type === "tool_use" && block.name) {
-            return { type: "tool_start", name: block.name }
+            return { type: "tool_start", name: block.name, input: block.input }
           }
         }
       }
@@ -122,12 +126,12 @@ export class ClaudeProvider extends Provider {
 
     // Tool use event
     if (json.type === "tool_use" && "name" in json) {
-      return { type: "tool_start", name: json.name }
+      return { type: "tool_start", name: json.name, input: json.input }
     }
 
     // Tool result marks end of tool use
     if (json.type === "tool_result") {
-      return { type: "tool_end" }
+      return { type: "tool_end", output: json.result }
     }
 
     // Result event marks end of interaction

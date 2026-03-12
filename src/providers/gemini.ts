@@ -56,6 +56,12 @@ export class GeminiProvider extends Provider {
   getCommand(options?: RunOptions): ProviderCommand {
     const args: string[] = []
 
+    // Print mode + stream JSON for event parsing
+    args.push("-p", "--output-format", "stream-json")
+
+    // Skip permission prompts when already running in a sandbox
+    args.push("--yolo")
+
     // Add model if specified (e.g., "gemini-2.0-flash", "gemini-1.5-pro")
     if (options?.model) {
       args.push("--model", options.model)

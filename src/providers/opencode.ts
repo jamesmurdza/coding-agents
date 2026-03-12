@@ -39,6 +39,17 @@ interface OpenCodeToolCall {
   }
 }
 
+/** Emitted when a tool finishes (--format json / stream-json) */
+interface OpenCodeToolUse {
+  type: "tool_use"
+  sessionID: string
+  part?: {
+    id: string
+    tool?: string
+    state?: { status: string }
+  }
+}
+
 interface OpenCodeToolResult {
   type: "tool_result"
   sessionID: string
@@ -73,6 +84,7 @@ type OpenCodeEvent =
   | OpenCodeStepStart
   | OpenCodeText
   | OpenCodeToolCall
+  | OpenCodeToolUse
   | OpenCodeToolResult
   | OpenCodeStepFinish
   | OpenCodeError
@@ -90,7 +102,8 @@ export class OpenCodeProvider extends Provider {
   }
 
   getCommand(options?: RunOptions): ProviderCommand {
-    const args: string[] = ["run", "--format", "json"]
+    // stream-json + verbose for line-by-line JSON to stdout
+    const args: string[] = ["run", "--format", "stream-json", "--verbose", "--yolo"]
 
     // Add model (default to gpt-4o which works reliably)
     const model = options?.model || "openai/gpt-4o"
@@ -133,6 +146,12 @@ export class OpenCodeProvider extends Provider {
 
     // Tool call start
     if (json.type === "tool_call") {
+      const toolName = json.part?.tool || "unknown"
+      return { type: "tool_start", name: toolName }
+    }
+
+    // Tool use (stream-json: emitted when tool completes; emit as tool_start so it appears in stream)
+    if (json.type === "tool_use") {
       const toolName = json.part?.tool || "unknown"
       return { type: "tool_start", name: toolName }
     }

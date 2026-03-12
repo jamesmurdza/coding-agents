@@ -8,7 +8,7 @@ const PROVIDER_PACKAGES: Record<ProviderName, string> = {
   claude: "@anthropic-ai/claude-code",
   codex: "@openai/codex",
   opencode: "opencode",
-  gemini: "@anthropic-ai/gemini-cli", // Placeholder - update when official package is available
+  gemini: "@google/gemini-cli",
 }
 
 /**

@@ -4,6 +4,7 @@ import { Provider } from "./base.js"
 
 /**
  * Raw event types from Codex's JSON stream
+ * Supports both legacy item.tool.* and current item.started/item.completed with item.type
  */
 interface CodexThreadStarted {
   type: "thread.started"
@@ -21,6 +22,21 @@ interface CodexItemCompleted {
     id: string
     type: string
     text?: string
+    command?: string
+    aggregated_output?: string
+    exit_code?: number | null
+    status?: string
+    changes?: Array<{ path: string; kind: string }>
+  }
+}
+
+interface CodexItemStarted {
+  type: "item.started"
+  item: {
+    id: string
+    type: string
+    command?: string
+    status?: string
   }
 }
 
@@ -58,6 +74,7 @@ type CodexEvent =
   | CodexThreadStarted
   | CodexMessageDelta
   | CodexItemCompleted
+  | CodexItemStarted
   | CodexToolStart
   | CodexToolInputDelta
   | CodexToolEnd
@@ -88,6 +105,9 @@ export class CodexProvider extends Provider {
 
     // Skip git repo check for sandbox environments
     args.push("--skip-git-repo-check")
+
+    // Skip permission prompts when already running in a sandbox
+    args.push("--yolo")
 
     // Add model if specified (e.g., "gpt-4o", "o1", "o3")
     if (options?.model) {
@@ -126,21 +146,41 @@ export class CodexProvider extends Provider {
     }
 
     // Item completed (full message)
-    if (json.type === "item.completed" && json.item?.text) {
+    if (json.type === "item.completed" && json.item?.type === "agent_message" && json.item?.text) {
       return { type: "token", text: json.item.text }
     }
 
-    // Tool start
+    // Item started - tool/action beginning (current Codex schema)
+    if (json.type === "item.started" && json.item) {
+      const it = json.item
+      const name = it.type === "command_execution" ? "shell" : it.type === "file_change" ? "write" : it.type
+      const input = it.type === "command_execution" && it.command != null ? { command: it.command } : it.type === "file_change" ? {} : undefined
+      return { type: "tool_start", name, input }
+    }
+
+    // Item completed - tool/action result (current Codex schema)
+    if (json.type === "item.completed" && json.item) {
+      const it = json.item
+      if (it.type === "command_execution" && it.aggregated_output !== undefined) {
+        return { type: "tool_end", output: it.aggregated_output }
+      }
+      if (it.type === "file_change" && it.changes) {
+        return { type: "tool_end", output: JSON.stringify(it.changes) }
+      }
+      return null
+    }
+
+    // Tool start (legacy)
     if (json.type === "item.tool.start") {
       return { type: "tool_start", name: json.name }
     }
 
-    // Tool input delta
+    // Tool input delta (legacy)
     if (json.type === "item.tool.input.delta") {
       return { type: "tool_delta", text: json.text }
     }
 
-    // Tool end
+    // Tool end (legacy)
     if (json.type === "item.tool.end") {
       return { type: "tool_end" }
     }
