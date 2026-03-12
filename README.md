@@ -171,16 +171,55 @@ for await (const event of provider.run({
 }
 ```
 
-### Event Types
+### Output format (event stream)
+
+`provider.run()` yields an async iterable of **events**. Every provider emits the same event shapes so you can handle Claude, Codex, Gemini, and OpenCode uniformly.
+
+#### Event types
+
+| Event           | Description                    | Fields |
+|-----------------|--------------------------------|--------|
+| `session`       | Session started (for resumption) | `id: string` |
+| `token`         | Streamed text from the assistant | `text: string` |
+| `tool_start`    | A tool is being invoked        | `name: string`, `input?: unknown` |
+| `tool_delta`    | Streaming tool input (if any)  | `text: string` |
+| `tool_end`      | Tool finished                  | `output?: string` |
+| `end`           | Turn / message complete        | —      |
+
+#### TypeScript
 
 ```typescript
 type Event =
-  | { type: "session"; id: string }      // Session started
-  | { type: "token"; text: string }      // Text token (streamed)
-  | { type: "tool_start"; name: string } // Tool invocation started
-  | { type: "tool_delta"; text: string } // Tool input streaming
-  | { type: "tool_end" }                 // Tool invocation ended
-  | { type: "end" }                      // Turn complete
+  | { type: "session"; id: string }
+  | { type: "token"; text: string }
+  | { type: "tool_start"; name: string; input?: unknown }
+  | { type: "tool_delta"; text: string }
+  | { type: "tool_end"; output?: string }
+  | { type: "end" }
+```
+
+#### Normalized tool names
+
+Tool names are normalized so you can branch on a single set across providers. Each tool has a defined **tool_start input** and **tool_end output** shape.
+
+| Tool     | tool_start `input` | tool_end `output` |
+|----------|--------------------|--------------------|
+| **write** | `{ file_path: string, content: string }` (Claude). Codex may also include `kind: "add" \| "update"`. | Success message or JSON array of `{ path, kind }` (Codex). |
+| **read** | `{ path: string }` or `{ file_path: string }` – path to the file to read. | File contents as a string. |
+| **edit** | Patch/edit payload (e.g. path + diff or instructions). Shape may vary by provider. | Success message or patch result. |
+| **glob** | `{ pattern: string }` or similar – glob pattern to search. | Newline-separated paths or JSON list. |
+| **grep** | `{ pattern: string, path?: string }` – search pattern and optional path. | Matching lines or JSON. |
+| **shell** | `{ command: string }` – the shell command to run (e.g. `"ls -la /tmp"`). May include `description`. | Stdout/stderr of the command as a string. |
+
+#### Example stream (write then end)
+
+```json
+{"type":"session","id":"abc-123"}
+{"type":"token","text":"I'll write the file.\n"}
+{"type":"tool_start","name":"write","input":{"file_path":"/tmp/hello.txt","content":"Hello"}}
+{"type":"tool_end","output":"File created successfully."}
+{"type":"token","text":"Done."}
+{"type":"end"}
 ```
 
 ### Convenience Methods
