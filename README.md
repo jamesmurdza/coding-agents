@@ -187,14 +187,6 @@ for await (const event of session.run("Hello")) {
 }
 ```
 
-You can still override defaults per call:
-
-```typescript
-for await (const event of session.run("Hello", { timeout: 30 })) {
-  // ...
-}
-```
-
 ### Output format (event stream)
 
 `session.run()` yields an async iterable of **events**. Every provider emits the same event shapes so you can handle Claude, Codex, and OpenCode uniformly.
@@ -291,22 +283,21 @@ await provider.runWithCallback((event) => {
 
 ## Model Selection
 
-Each provider supports specifying a model via the `model` option. With sessions, set `model` once at creation time (or override per call).
+Each provider supports a `model` option. Set it at session creation.
 
 ### Claude Models
 
 ```typescript
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
 const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
-const claudeSession = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
 
-// Use model alias (recommended)
-await claudeSession.run("Hello", { model: "sonnet" })
-await claudeSession.run("Hello", { model: "opus" })
-await claudeSession.run("Hello", { model: "haiku" })
-
-// Or use full model name
-await claudeSession.run("Hello", { model: "claude-sonnet-4-5-20250929" })
+// Set model at creation (alias or full name)
+const claudeSession = await createSession("claude", {
+  sandbox,
+  env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY },
+  model: "sonnet", // or "opus", "haiku", "claude-sonnet-4-5-20250929"
+})
+for await (const event of claudeSession.run("Hello")) { /* ... */ }
 ```
 
 See [Claude Code model configuration](https://code.claude.com/docs/en/model-config) for all available models.
@@ -314,13 +305,12 @@ See [Claude Code model configuration](https://code.claude.com/docs/en/model-conf
 ### Codex Models
 
 ```typescript
-const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create({ envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-const codex = await createSession("codex", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-
-await codex.run("Hello", { model: "gpt-4o" })
-await codex.run("Hello", { model: "o1" })
-await codex.run("Hello", { model: "o3" })
+const codex = await createSession("codex", {
+  sandbox,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+  model: "gpt-4o", // or "o1", "o3"
+})
+for await (const event of codex.run("Hello")) { /* ... */ }
 ```
 
 See [Codex CLI models](https://developers.openai.com/codex/models) for all available models.
@@ -328,12 +318,12 @@ See [Codex CLI models](https://developers.openai.com/codex/models) for all avail
 ### Gemini Models
 
 ```typescript
-const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create({ envVars: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY } })
-const gemini = await createSession("gemini", { sandbox, env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY } })
-
-await gemini.run("Hello", { model: "gemini-2.0-flash" })
-await gemini.run("Hello", { model: "gemini-1.5-pro" })
+const gemini = await createSession("gemini", {
+  sandbox,
+  env: { GOOGLE_API_KEY: process.env.GOOGLE_API_KEY },
+  model: "gemini-2.0-flash", // or "gemini-1.5-pro"
+})
+for await (const event of gemini.run("Hello")) { /* ... */ }
 ```
 
 See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all available models.
@@ -341,19 +331,13 @@ See [Gemini CLI model selection](https://geminicli.com/docs/cli/model) for all a
 ### OpenCode Models
 
 ```typescript
-const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
-const sandbox = await daytona.create({ envVars: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-const opencode = await createSession("opencode", { sandbox, env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY } })
-
-// Format: "provider/model"
-await opencode.run("Hello", { model: "openai/gpt-4o" })           // Default
-await opencode.run("Hello", { model: "openai/gpt-4o-mini" })
-await opencode.run("Hello", { model: "openai/o1" })
-await opencode.run("Hello", { model: "openai/o3" })
-
-// Other providers supported by OpenCode
-await opencode.run("Hello", { model: "anthropic/claude-sonnet" })
-await opencode.run("Hello", { model: "google/gemini-2.0-flash" })
+// Format: "provider/model" (default is openai/gpt-4o)
+const opencode = await createSession("opencode", {
+  sandbox,
+  env: { OPENAI_API_KEY: process.env.OPENAI_API_KEY },
+  model: "openai/gpt-4o", // or "openai/o1", "anthropic/claude-sonnet", etc.
+})
+for await (const event of opencode.run("Hello")) { /* ... */ }
 ```
 
 See [OpenCode models](https://opencode.ai/docs/models/) for all available models and providers.

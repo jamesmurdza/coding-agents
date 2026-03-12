@@ -2,18 +2,18 @@
  * Code Agent SDK
  *
  * A TypeScript SDK for interacting with various AI coding agents.
- * Create a sandbox with @daytonaio/sdk and pass it to createProvider/createSession.
+ * Create a sandbox with @daytonaio/sdk and pass it to createSession.
  *
  * @example
  * ```typescript
  * import { Daytona } from "@daytonaio/sdk"
- * import { createProvider } from "code-agent-sdk"
+ * import { createSession } from "code-agent-sdk"
  *
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
  * const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
- * const provider = createProvider("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
+ * const session = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
  *
- * for await (const event of provider.run({ prompt: "Hello" })) {
+ * for await (const event of session.run("Hello")) {
  *   if (event.type === "token") process.stdout.write(event.text)
  * }
  *

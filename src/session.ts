@@ -31,8 +31,8 @@ export class Session {
     return this.provider.getSessionId()
   }
 
-  async *run(prompt: string, overrides: Omit<RunOptions, "prompt"> = {}): AsyncGenerator<Event, void, unknown> {
-    yield* this.provider.run({ ...this.defaults, ...overrides, prompt })
+  async *run(prompt: string): AsyncGenerator<Event, void, unknown> {
+    yield* this.provider.run({ ...this.defaults, prompt })
   }
 }
 

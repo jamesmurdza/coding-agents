@@ -115,7 +115,7 @@ async function main() {
   console.log()
 
   const env = { [providerKeyConfig.envVar]: PROVIDER_API_KEY! }
-  const session = await createSession(selectedProvider, { sandbox, env })
+  const session = await createSession(selectedProvider, { sandbox, env, model: selectedModel, timeout: 120 })
 
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready.`)
   console.log()
@@ -163,7 +163,7 @@ async function main() {
 
         const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
 
-        for await (const event of session.run(trimmed, { model: selectedModel, timeout: 120 })) {
+        for await (const event of session.run(trimmed)) {
           // Session events are captured internally; don't print them in REPL output.
           if (event.type === "session") continue
           if (event.type === "token") {
