@@ -1,6 +1,15 @@
 import { spawn } from "node:child_process"
 import * as readline from "node:readline"
-import type { Event, IProvider, ProviderCommand, ProviderName, RunOptions, ProviderOptions, RunDefaults } from "../types/index.js"
+import { randomUUID } from "node:crypto"
+import type {
+  Event,
+  IProvider,
+  ProviderCommand,
+  ProviderName,
+  RunOptions,
+  ProviderOptions,
+  RunDefaults,
+} from "../types/index.js"
 import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
 import { ensureCliInstalled } from "../utils/install.js"
 import type { CodeAgentSandbox } from "../types/index.js"
@@ -229,6 +238,140 @@ export abstract class Provider implements IProvider {
       })
       proc.on("error", reject)
     })
+  }
+
+  /**
+   * Start a background run inside the sandbox.
+   * The CLI is run with stdout redirected to an append-only JSONL log file.
+   * Later you can call pollSandboxBackground(outputFile, cursor) to consume new events.
+   */
+  async startSandboxBackground(
+    options: RunOptions & { outputFile: string }
+  ): Promise<{
+    executionId: string
+    pid: number
+    outputFile: string
+    cursor: string
+  }> {
+    if (!this.sandboxManager || !this.sandboxManager.executeCommand) {
+      throw new Error("Sandbox background mode requires a sandbox with executeCommand support")
+    }
+
+    await (this._readyPromise ?? Promise.resolve())
+    await this._applyRunEnv(options)
+
+    const { cmd, args, env: cmdEnv } = this.getCommand(options)
+
+    if (cmdEnv) {
+      this.sandboxManager.setEnvVars(cmdEnv)
+    }
+
+    const fullCommand = [cmd, ...args.map(arg =>
+      arg.includes(" ") || arg.includes('"') || arg.includes("'")
+        ? `'${arg.replace(/'/g, "'\\''")}'`
+        : arg
+    )].join(" ")
+
+    const bgCommand = `bash -lc "${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 & echo $!"`
+    const timeout = options.timeout ?? 30
+
+    const result = await this.sandboxManager.executeCommand(bgCommand, timeout)
+    const raw = result.output.trim()
+    const pid = Number(raw.split(/\s+/).pop() ?? "-1") || -1
+
+    const executionId = randomUUID()
+
+    return {
+      executionId,
+      pid,
+      outputFile: options.outputFile,
+      cursor: "0",
+    }
+  }
+
+  /**
+   * Poll a background sandbox run by reading the JSONL log file.
+   * Cursor is an opaque string representing the last processed line index.
+   */
+  async pollSandboxBackground(
+    outputFile: string,
+    cursor?: string | null
+  ): Promise<{
+    status: "running" | "completed"
+    sessionId: string | null
+    events: Event[]
+    cursor: string
+  }> {
+    if (!this.sandboxManager || !this.sandboxManager.executeCommand) {
+      throw new Error("Sandbox background mode requires a sandbox with executeCommand support")
+    }
+
+    const decodeCursor = (c?: string | null) => (c ? Number(c) || 0 : 0)
+    const encodeCursor = (index: number) => String(index)
+
+    const startIndex = decodeCursor(cursor)
+
+    const catCommand = `cat ${outputFile}`
+    const result = await this.sandboxManager.executeCommand(catCommand, 30)
+    const rawOutput = result.output ?? ""
+
+    const rawLines = rawOutput.split("\n")
+    const lines: string[] = []
+
+    const isJsonLine = (line: string): boolean => {
+      const trimmed = line.trim()
+      return trimmed.startsWith("{") && trimmed.endsWith("}")
+    }
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i]
+      const trimmed = line.trim()
+      if (!trimmed) continue
+      if (!isJsonLine(trimmed) && i === rawLines.length - 1) {
+        // Likely a partial line being written; skip it for now.
+        continue
+      }
+      if (isJsonLine(trimmed)) {
+        lines.push(trimmed)
+      }
+    }
+
+    if (startIndex >= lines.length) {
+      return {
+        status: "running",
+        sessionId: this.sessionId,
+        events: [],
+        cursor: encodeCursor(lines.length),
+      }
+    }
+
+    const slice = lines.slice(startIndex)
+
+    const eventsOut: Event[] = []
+    let status: "running" | "completed" = "running"
+
+    for (const line of slice) {
+      const raw = this.parse(line)
+      const events = raw === null ? [] : Array.isArray(raw) ? raw : [raw]
+      for (const event of events) {
+        if (event.type === "session") {
+          this.sessionId = event.id
+        }
+        if (event.type === "end") {
+          status = "completed"
+        }
+        eventsOut.push(event)
+      }
+    }
+
+    const newCursor = encodeCursor(lines.length)
+
+    return {
+      status,
+      sessionId: this.sessionId,
+      events: eventsOut,
+      cursor: newCursor,
+    }
   }
 
   /**
