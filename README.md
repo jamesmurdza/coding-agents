@@ -185,6 +185,11 @@ const result = await sandbox.executeCommand("claude --version")
 console.log(result.output)
 console.log(result.exitCode)
 
+// Stream command output line by line
+for await (const line of sandbox.executeCommandStream("claude -p 'Hello'")) {
+  console.log(line)
+}
+
 // Cleanup when done
 await sandbox.destroy()
 ```
@@ -215,7 +220,7 @@ npm run build
 npm test
 
 # Run sandbox integration test
-npx tsx scripts/test-sandbox.ts
+npx tsx scripts/test-streaming-sandbox.ts
 ```
 
 ## Security
