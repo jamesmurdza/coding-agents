@@ -125,8 +125,10 @@ async function main() {
   })
 
   try {
+    // Session installs CLI in sandbox and uses env for auth
     const session = await createSession("claude", { sandbox, env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } })
 
+    // Stream events: tokens, tool_start/tool_end, session id, end
     for await (const event of session.run("List /tmp then write /tmp/out.txt with 'done'")) {
       switch (event.type) {
         case "session":
@@ -153,7 +155,7 @@ async function main() {
       }
     }
   } finally {
-    await sandbox.delete()
+    await sandbox.delete() // always tear down
   }
 }
 
