@@ -1,5 +1,5 @@
 /**
- * Code Agent SDK
+ * Coding Agents SDK
  *
  * A TypeScript SDK for interacting with various AI coding agents.
  * Create a sandbox with @daytonaio/sdk and pass it to createSession.

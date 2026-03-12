@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Interactive REPL for testing the Code Agent SDK
+ * Interactive REPL for testing the Coding Agents SDK
  *
  * Usage: npx tsx scripts/repl.ts [--provider <name>] [--model <model>]
  *
@@ -54,7 +54,7 @@ function parseArgs(): { provider: ProviderName; model?: string } {
       i++ // Skip next arg
     } else if (args[i] === "--help" || args[i] === "-h") {
       console.log(`
-Code Agent SDK - Interactive REPL
+Coding Agents SDK - Interactive REPL
 
 Usage: npx tsx scripts/repl.ts [options]
 
@@ -102,7 +102,7 @@ if (!PROVIDER_API_KEY) {
 
 async function main() {
   console.log("============================================================")
-  console.log("  Code Agent SDK - Interactive REPL")
+  console.log("  Coding Agents SDK - Interactive REPL")
   console.log(`  Provider: ${selectedProvider}${selectedModel ? ` (model: ${selectedModel})` : ""}`)
   console.log("============================================================")
   console.log()

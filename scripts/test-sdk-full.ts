@@ -15,7 +15,7 @@ if (!DAYTONA_API_KEY || !ANTHROPIC_API_KEY) {
 
 async function main() {
   console.log("============================================================")
-  console.log("Code Agent SDK - Full Test")
+  console.log("Coding Agents SDK - Full Test")
   console.log("============================================================")
 
   console.log("\n1. Creating sandbox with ANTHROPIC_API_KEY...")
