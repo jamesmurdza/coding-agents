@@ -9,7 +9,7 @@ const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
 async function readProviderFromMeta(
   sandbox: Parameters<typeof adaptSandbox>[0],
   sessionDir: string
-): Promise<ProviderName | null> {
+): Promise<{ provider: ProviderName | null; sessionId: string | null }> {
   const adapted = adaptSandbox(sandbox)
   if (!adapted.executeCommand) return null
   const result = await adapted.executeCommand(
@@ -19,10 +19,13 @@ async function readProviderFromMeta(
   const raw = (result.output ?? "").trim()
   if (!raw) return null
   try {
-    const o = JSON.parse(raw) as { provider?: ProviderName }
-    return o.provider ?? null
+    const o = JSON.parse(raw) as { provider?: ProviderName; sessionId?: string | null }
+    return {
+      provider: o.provider ?? null,
+      sessionId: o.sessionId ?? null,
+    }
   } catch {
-    return null
+    return { provider: null, sessionId: null }
   }
 }
 
@@ -111,13 +114,21 @@ export async function getBackgroundSession(
 ): Promise<BackgroundSession> {
   const { backgroundSessionId, sandbox } = options
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${backgroundSessionId}`
-  const name = await readProviderFromMeta(sandbox, sessionDir)
-  if (!name) {
+  const meta = await readProviderFromMeta(sandbox, sessionDir)
+  if (!meta?.provider) {
     throw new Error(
       "Cannot get background session: meta not found (start a turn first) or meta has no provider"
     )
   }
-  return createBackgroundSessionWithId(name, options, backgroundSessionId)
+  return createBackgroundSessionWithId(
+    meta.provider,
+    {
+      ...options,
+      // Seed sessionId so providers that support resume (e.g. Claude) can continue the same session.
+      sessionId: meta.sessionId ?? options.sessionId,
+    },
+    backgroundSessionId
+  )
 }
 
 async function createBackgroundSessionWithId(
@@ -138,6 +149,7 @@ async function createBackgroundSessionWithId(
         timeout: options.timeout,
         env: options.env,
         systemPrompt: options.systemPrompt,
+        sessionId: options.sessionId,
         ...(extraOptions ?? {}),
         prompt,
       })

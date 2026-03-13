@@ -262,13 +262,25 @@ const sandbox = await daytona.create({
   envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
 })
 
-const bgSession = await createBackgroundSession("claude", { sandbox, model: "sonnet" })
+const bgSession = await createBackgroundSession("claude", {
+  sandbox,
+  model: "sonnet",
+  // Optional: per-session system prompt (applied once, persisted across turns).
+  systemPrompt: "You are a helpful coding assistant.",
+})
 await bgSession.start("Do a long-running refactor...")
 // Persist sandbox.id and bgSession.id, then exit.
 
 // --- After restart ---
 const sandboxAgain = await daytona.get(sandboxId)
-const bgAgain = await getBackgroundSession({ sandbox: sandboxAgain, backgroundSessionId })
+const bgAgain = await getBackgroundSession({
+  sandbox: sandboxAgain,
+  backgroundSessionId,
+  // Re-apply session options so the provider is recreated with the same model
+  // and system prompt when reattaching.
+  model: "sonnet",
+  systemPrompt: "You are a helpful coding assistant.",
+})
 
 async function poll() {
   const { events } = await bgAgain.getEvents()

@@ -8,7 +8,13 @@
  */
 import * as readline from "node:readline"
 import { Daytona } from "@daytonaio/sdk"
-import { createBackgroundSession, getProviderNames, isValidProvider, type ProviderName } from "../src/index.js"
+import {
+  createBackgroundSession,
+  getBackgroundSession,
+  getProviderNames,
+  isValidProvider,
+  type ProviderName,
+} from "../src/index.js"
 
 // Provider -> API key environment variable mapping
 const PROVIDER_API_KEYS: Record<ProviderName, { envVar: string; name: string }> = {
@@ -108,6 +114,10 @@ async function main() {
     systemPrompt: "You are a helpful coding assistant who responds in clear, concise French.",
   })
 
+  const backgroundSessionId = bgSession.id
+  const sandboxId = sandbox.id
+  let hasStarted = false
+
   console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready (polling mode). Session ID: ${bgSession.id}`)
   console.log()
   console.log("Commands:")
@@ -147,6 +157,22 @@ async function main() {
       }
 
       try {
+        // On first prompt, use the existing background session so meta is created.
+        // On subsequent prompts, re-fetch sandbox and background session to simulate reconnect.
+        const sandboxForTurn = hasStarted ? await daytona.get(sandboxId) : sandbox
+        const bg =
+          hasStarted
+            ? await getBackgroundSession({
+                sandbox: sandboxForTurn,
+                backgroundSessionId,
+                // Re-apply core session options so the provider is recreated with
+                // the same model and system prompt on each reattach.
+                model: selectedModel,
+                timeout: 120,
+                systemPrompt: "You are a helpful coding assistant who responds in clear, concise French.",
+              })
+            : bgSession
+
         // Show thinking indicator
         process.stdout.write("\x1b[90mThinking (polling)...\x1b[0m")
         let firstToken = true
@@ -155,11 +181,12 @@ async function main() {
         const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
 
         // Start sandboxed background run via background session
-        await bgSession.start(trimmed)
+        await bg.start(trimmed)
+        hasStarted = true
         let done = false
 
         while (!done) {
-          const res = await bgSession.getEvents()
+          const res = await bg.getEvents()
 
           for (const event of res.events) {
             // Session events are captured internally; don't print them in REPL output.
@@ -195,7 +222,7 @@ async function main() {
             }
           }
 
-          if (!done && !(await bgSession.isRunning())) {
+          if (!done && !(await bg.isRunning())) {
             done = true
             console.log("\n\x1b[90m(agent process stopped)\x1b[0m")
           }

@@ -272,6 +272,7 @@ export abstract class Provider implements IProvider {
     pid?: number
     startedAt?: string
     provider?: import("../types/index.js").ProviderName
+    sessionId?: string | null
   } | null> {
     if (!this.sandboxManager?.executeCommand) return null
     const result = await this.sandboxManager.executeCommand(
@@ -287,6 +288,7 @@ export abstract class Provider implements IProvider {
         pid?: number
         startedAt?: string
         provider?: import("../types/index.js").ProviderName
+        sessionId?: string | null
       }
       if (typeof o.currentTurn !== "number" || typeof o.cursor !== "number") return null
       return {
@@ -295,6 +297,7 @@ export abstract class Provider implements IProvider {
         pid: o.pid,
         startedAt: o.startedAt,
         provider: o.provider,
+        sessionId: o.sessionId ?? null,
       }
     } catch {
       return null
@@ -309,6 +312,7 @@ export abstract class Provider implements IProvider {
       pid?: number
       startedAt?: string
       provider?: import("../types/index.js").ProviderName
+      sessionId?: string | null
     }
   ): Promise<void> {
     if (!this.sandboxManager?.executeCommand) {
@@ -343,6 +347,7 @@ export abstract class Provider implements IProvider {
       pid: result.pid,
       startedAt: new Date().toISOString(),
       provider: this.name,
+      sessionId: this.sessionId,
     })
     return { executionId: result.executionId, pid: result.pid, outputFile }
   }
@@ -392,6 +397,7 @@ export abstract class Provider implements IProvider {
       pid: meta?.pid,
       startedAt: meta?.startedAt,
       provider: this.name,
+      sessionId: this.sessionId,
     })
     return { sessionId: result.sessionId, events: result.events, cursor: result.cursor }
   }
