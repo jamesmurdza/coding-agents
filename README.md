@@ -331,15 +331,25 @@ for await (const event of session.run("Hello")) {
 
 **Warning:** Local mode executes arbitrary CLI commands on your machine. Only use this when you fully trust the code being executed.
 
-### Sandboxed Background Mode
+### Sandboxed Background Sessions
 
-You can also start a **background** run inside a Daytona sandbox that writes the raw JSONL event stream to a file in the sandbox, and then **poll** it later. This is useful when your app or API may restart while the agent is still running, and it uses the exact same event stream format as `session.run()`.
+Background sessions let you start agent runs inside a Daytona sandbox that write the JSONL event stream to log files in the sandbox, then **getEvents** for new events. Useful when your app or API may restart while the agent is still running. Events are the same shape as `session.run()`.
+
+**Design (all state except session ID lives in the sandbox):**
+
+- Each background session has a **unique session ID** (e.g. UUID). The host only needs this ID; paths and cursor are derived inside the sandbox.
+- **One directory per session** in the sandbox, e.g. `/tmp/codeagent-<id>/`.
+- **One log file per turn:** `0.jsonl`, `1.jsonl`, … The CLI appends to the current turn’s file only.
+- **One meta file** for the session, e.g. `meta.json`, holding `currentTurn`, `cursor` (line index for the current turn’s log), `pid` (from the latest `start()`), and optional `startedAt`. Cursor is read/updated in the sandbox on each getEvents so the host never passes or stores it.
+
+**Optional cleanup:** When a turn completes (you’ve seen an `end` event), that turn’s log file is no longer written to. The session can then safely delete or truncate that turn’s log file to free space in the sandbox.
+
+**Example:**
 
 ```typescript
 import { Daytona } from "@daytonaio/sdk"
 import { createBackgroundSession } from "@jamesmurdza/coding-agents-sdk"
 
-// 1. Create a sandbox and background session
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY! })
 const sandbox = await daytona.create({
   envVars: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
@@ -349,48 +359,27 @@ const bg = await createBackgroundSession("claude", {
   sandbox,
   env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY! },
   model: "sonnet",
-  outputFile: "/tmp/agent-stdout.jsonl", // append-only JSONL log in the sandbox
 })
+console.log("Background session ID:", bg.id)
 
-// 2. Start a background run inside the sandbox (no PTY, stdout -> file)
-const { executionId, pid, cursor: initialCursor } = await bg.start("Do a long-running refactor...")
-
-console.log("Started sandboxed background agent", { executionId, pid, outputFile: bg.outputFile })
-
-// 3. Poll for new output using an opaque cursor
-let cursor: string | null = initialCursor
+const { executionId, pid } = await bg.start("Do a long-running refactor...")
+console.log("Started turn", { executionId, pid })
 
 async function poll() {
-  const res = await bg.poll(cursor)
-
-  // Handle events exactly like session.run(), but batched since last cursor
+  const res = await bg.getEvents()
   for (const event of res.events) {
-    if (event.type === "token") {
-      process.stdout.write(event.text)
-    } else if (event.type === "tool_start") {
-      console.log("[Tool start]", event.name, event.input)
-    } else if (event.type === "tool_end") {
-      console.log("[Tool end]", event.output)
-    }
+    if (event.type === "token") process.stdout.write(event.text)
+    else if (event.type === "tool_start") console.log("[Tool]", event.name)
+    else if (event.type === "tool_end") console.log("[Tool end]")
   }
-
-  cursor = res.cursor // pass this back on the next poll
-
   if (res.status === "completed") {
-    console.log("Background agent completed. Session ID:", res.sessionId)
+    console.log("\nTurn completed. Session ID:", res.sessionId)
     return
   }
-
-  // Poll again in a few seconds
   setTimeout(poll, 2000)
 }
-
 poll()
 ```
-
-Notes:
-- Background mode runs **inside the Daytona sandbox**, using the provider CLI there.
-- The `outputFile` is an append-only JSONL log (one JSON event per line) that lives in the sandbox filesystem.
 
 ## Interactive REPL
 

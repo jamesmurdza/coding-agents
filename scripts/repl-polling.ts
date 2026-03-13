@@ -107,11 +107,9 @@ async function main() {
     env,
     model: selectedModel,
     timeout: 120,
-    // Single log file reused across prompts; each prompt advances its cursor.
-    outputFile: "/tmp/coding-agent-repl.jsonl",
   })
 
-  console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready (polling mode).`)
+  console.log(`${selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)} ready (polling mode). Session ID: ${bgSession.id}`)
   console.log()
   console.log("Commands:")
   console.log(`  Type a prompt and press Enter to send to ${selectedProvider}`)
@@ -158,13 +156,11 @@ async function main() {
         const providerLabel = selectedProvider.charAt(0).toUpperCase() + selectedProvider.slice(1)
 
         // Start sandboxed background run via background session
-        const { cursor: initialCursor } = await bgSession.start(trimmed)
-
-        let cursor: string | null = initialCursor
+        await bgSession.start(trimmed)
         let done = false
 
         while (!done) {
-          const res = await bgSession.poll(cursor)
+          const res = await bgSession.getEvents()
 
           for (const event of res.events) {
             // Session events are captured internally; don't print them in REPL output.
@@ -199,8 +195,6 @@ async function main() {
               done = true
             }
           }
-
-          cursor = res.cursor
 
           if (!done) {
             await new Promise(resolve => setTimeout(resolve, 500))

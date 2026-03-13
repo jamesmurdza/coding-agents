@@ -1,6 +1,9 @@
+import { randomUUID } from "node:crypto"
 import type { ProviderName, ProviderOptions, RunDefaults, RunOptions, Event } from "./types/index.js"
 import { createProvider } from "./factory.js"
 import type { Provider } from "./providers/base.js"
+
+const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
 
 /** Options for createSession (provider options + run defaults like model, timeout). */
 export interface SessionOptions extends ProviderOptions {
@@ -11,38 +14,29 @@ export interface SessionOptions extends ProviderOptions {
   env?: Record<string, string>
 }
 
-/** Options for createBackgroundSession (session options + required outputFile path). */
-export interface BackgroundSessionOptions extends SessionOptions {
-  /**
-   * Path to the JSONL log file inside the sandbox where the provider CLI
-   * will append its stream-json events.
-   */
-  outputFile: string
-}
+/** Options for createBackgroundSession (session options; outputFile is derived from session id). */
+export interface BackgroundSessionOptions extends SessionOptions {}
 
-/** Background session handle: start background runs and poll for events. */
+/** Background session handle: start turns and get events; state lives in sandbox under session id. */
 export interface BackgroundSession {
+  /** Unique session id; paths and cursor in sandbox are derived from this. */
+  readonly id: string
   /** Underlying provider instance (advanced use only). */
   readonly provider: Provider
-  /** JSONL log file path used for this background session. */
-  readonly outputFile: string
 
   /**
-   * Start a background run with the given prompt. Returns execution metadata
-   * and the initial cursor for polling.
+   * Start a new turn with the given prompt. One log file per turn in the sandbox.
    */
   start(prompt: string, options?: Omit<RunOptions, "prompt">): Promise<{
     executionId: string
     pid: number
     outputFile: string
-    cursor: string
   }>
 
   /**
-   * Poll for new events since the last cursor. Events have the same shape
-   * as those yielded by session.run().
+   * Get new events for the current turn. Cursor is read/updated in sandbox meta; no arguments.
    */
-  poll(cursor?: string | null): Promise<{
+  getEvents(): Promise<{
     status: "running" | "completed"
     sessionId: string | null
     events: Event[]
@@ -64,29 +58,28 @@ export async function createSession(name: ProviderName, options: SessionOptions)
 
 /**
  * Create a background session: a provider configured for sandboxed background
- * execution with JSONL log polling. Use start() to launch a background run and
- * poll() to consume events incrementally.
+ * execution with one log file per turn and meta/cursor in the sandbox.
+ * Use start() to begin a turn and getEvents() to consume events (no cursor argument).
  */
 export async function createBackgroundSession(
   name: ProviderName,
   options: BackgroundSessionOptions
 ): Promise<BackgroundSession> {
-  const { outputFile, ...sessionOptions } = options
-  const provider = await createSession(name, sessionOptions)
+  const id = randomUUID()
+  const provider = await createSession(name, options)
+  const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${id}`
 
   return {
+    id,
     provider,
-    outputFile,
     async start(prompt: string, extraOptions?: Omit<RunOptions, "prompt">) {
-      const res = await provider.startSandboxBackground({
+      return provider.startSandboxBackgroundTurn(sessionDir, {
         ...(extraOptions ?? {}),
         prompt,
-        outputFile,
       })
-      return res
     },
-    async poll(cursor?: string | null) {
-      return provider.pollSandboxBackground(outputFile, cursor ?? null)
+    async getEvents() {
+      return provider.getEventsSandboxBackgroundFromMeta(sessionDir)
     },
   }
 }

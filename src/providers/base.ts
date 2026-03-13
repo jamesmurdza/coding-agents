@@ -240,6 +240,91 @@ export abstract class Provider implements IProvider {
     })
   }
 
+  /** Meta stored in sandbox for background session (one log per turn, cursor in meta). */
+  protected async readSandboxMeta(sessionDir: string): Promise<{
+    currentTurn: number
+    cursor: number
+    pid?: number
+    startedAt?: string
+  } | null> {
+    if (!this.sandboxManager?.executeCommand) return null
+    const result = await this.sandboxManager.executeCommand(
+      `cat "${sessionDir}/meta.json" 2>/dev/null || true`,
+      10
+    )
+    const raw = (result.output ?? "").trim()
+    if (!raw) return null
+    try {
+      const o = JSON.parse(raw) as { currentTurn?: number; cursor?: number; pid?: number; startedAt?: string }
+      if (typeof o.currentTurn !== "number" || typeof o.cursor !== "number") return null
+      return { currentTurn: o.currentTurn, cursor: o.cursor, pid: o.pid, startedAt: o.startedAt }
+    } catch {
+      return null
+    }
+  }
+
+  protected async writeSandboxMeta(
+    sessionDir: string,
+    meta: { currentTurn: number; cursor: number; pid?: number; startedAt?: string }
+  ): Promise<void> {
+    if (!this.sandboxManager?.executeCommand) {
+      throw new Error("Sandbox background mode requires a sandbox with executeCommand support")
+    }
+    const json = JSON.stringify(meta)
+    const b64 = Buffer.from(json, "utf8").toString("base64")
+    await this.sandboxManager.executeCommand(
+      `mkdir -p "${sessionDir}" && echo '${b64}' | base64 -d > "${sessionDir}/meta.json"`,
+      10
+    )
+  }
+
+  /**
+   * Start a new turn in a session directory: one log file per turn, meta in sandbox.
+   */
+  async startSandboxBackgroundTurn(
+    sessionDir: string,
+    options: RunOptions
+  ): Promise<{ executionId: string; pid: number; outputFile: string }> {
+    if (!this.sandboxManager?.executeCommand) {
+      throw new Error("Sandbox background mode requires a sandbox with executeCommand support")
+    }
+    await this.sandboxManager.executeCommand(`mkdir -p "${sessionDir}"`, 10)
+    const meta = await this.readSandboxMeta(sessionDir)
+    const nextTurn = (meta?.currentTurn ?? -1) + 1
+    const outputFile = `${sessionDir}/${nextTurn}.jsonl`
+    const result = await this.startSandboxBackground({ ...options, outputFile })
+    await this.writeSandboxMeta(sessionDir, {
+      currentTurn: nextTurn,
+      cursor: 0,
+      pid: result.pid,
+      startedAt: new Date().toISOString(),
+    })
+    return { executionId: result.executionId, pid: result.pid, outputFile }
+  }
+
+  /**
+   * Get new events for the current turn; reads and updates cursor in sandbox meta.
+   */
+  async getEventsSandboxBackgroundFromMeta(sessionDir: string): Promise<{
+    status: "running" | "completed"
+    sessionId: string | null
+    events: Event[]
+    cursor: string
+  }> {
+    const meta = await this.readSandboxMeta(sessionDir)
+    const currentTurn = meta?.currentTurn ?? 0
+    const outputFile = `${sessionDir}/${currentTurn}.jsonl`
+    const cursor = meta != null ? String(meta.cursor) : null
+    const result = await this.pollSandboxBackground(outputFile, cursor)
+    await this.writeSandboxMeta(sessionDir, {
+      currentTurn,
+      cursor: Number(result.cursor) || 0,
+      pid: meta?.pid,
+      startedAt: meta?.startedAt,
+    })
+    return result
+  }
+
   /**
    * Start a background run inside the sandbox.
    * The CLI is run with stdout redirected to an append-only JSONL log file.
