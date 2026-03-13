@@ -335,10 +335,23 @@ export abstract class Provider implements IProvider {
   }
 
   /**
+   * Check if the current turn's process is still running in the sandbox (kill -0 pid).
+   */
+  async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
+    const meta = await this.readSandboxMeta(sessionDir)
+    if (meta?.pid == null || !this.sandboxManager?.executeCommand) return false
+    const result = await this.sandboxManager.executeCommand(
+      `kill -0 ${meta.pid} 2>/dev/null`,
+      10
+    )
+    return result.exitCode === 0
+  }
+
+  /**
    * Get new events for the current turn; reads and updates cursor in sandbox meta.
+   * Use isSandboxBackgroundProcessRunning() to check if the agent is still running.
    */
   async getEventsSandboxBackgroundFromMeta(sessionDir: string): Promise<{
-    status: "running" | "completed"
     sessionId: string | null
     events: Event[]
     cursor: string
@@ -355,7 +368,7 @@ export abstract class Provider implements IProvider {
       startedAt: meta?.startedAt,
       provider: this.name,
     })
-    return result
+    return { sessionId: result.sessionId, events: result.events, cursor: result.cursor }
   }
 
   /**

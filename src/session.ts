@@ -59,13 +59,16 @@ export interface BackgroundSession {
 
   /**
    * Get new events for the current turn. Cursor is read/updated in sandbox meta; no arguments.
+   * Use isRunning() to check if the agent is still running (or crashed).
    */
   getEvents(): Promise<{
-    status: "running" | "completed"
     sessionId: string | null
     events: Event[]
     cursor: string
   }>
+
+  /** True if the current turn's process is still running in the sandbox (e.g. detect crash). */
+  isRunning(): Promise<boolean>
 
   /** Cancel the current turn's process in the sandbox (no-op if not running). */
   cancel(): Promise<void>
@@ -134,6 +137,9 @@ async function createBackgroundSessionWithId(
     },
     async getEvents() {
       return provider.getEventsSandboxBackgroundFromMeta(sessionDir)
+    },
+    async isRunning() {
+      return provider.isSandboxBackgroundProcessRunning(sessionDir)
     },
     async cancel() {
       return provider.cancelSandboxBackground(sessionDir)

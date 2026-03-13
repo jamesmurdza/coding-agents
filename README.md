@@ -319,6 +319,7 @@ Background sessions let you start agent runs inside a Daytona sandbox that write
 - **One directory per session** in the sandbox, e.g. `/tmp/codeagent-<id>/`.
 - **One log file per turn:** `0.jsonl`, `1.jsonl`, … The CLI appends to the current turn’s file only.
 - **One meta file** for the session, e.g. `meta.json`, holding `currentTurn`, `cursor` (line index for the current turn’s log), `pid` (from the latest `start()`), and optional `startedAt`. Cursor is read/updated in the sandbox on each getEvents so the host never passes or stores it.
+- **Crash detection:** Use `bgSession.isRunning()` to check if the agent process is still alive. If it crashes, you may not see an `end` event.
 
 **Optional cleanup:** When a turn completes (you’ve seen an `end` event), that turn’s log file is no longer written to. The session can then safely delete or truncate that turn’s log file to free space in the sandbox.
 
@@ -334,31 +335,31 @@ const sandbox = await daytona.create({
 })
 
 const sandboxId = sandbox.id
-const bg = await createBackgroundSession("claude", { sandbox, model: "sonnet" })
-const backgroundSessionId = bg.id
+const bgSession = await createBackgroundSession("claude", { sandbox, model: "sonnet" })
+const backgroundSessionId = bgSession.id
 
-await bg.start("Do a long-running refactor...")
+await bgSession.start("Do a long-running refactor...")
 // Persist sandboxId and backgroundSessionId (e.g. to disk or DB), then exit.
 
 // --- We're stopping the script and starting another one (e.g. after restart). ---
 
 const sandboxAgain = await daytona.get(sandboxId)
-const bgAgain = await getBackgroundSession({ sandbox: sandboxAgain, backgroundSessionId })
+const bgSessionAgain = await getBackgroundSession({ sandbox: sandboxAgain, backgroundSessionId })
 
 async function readAll() {
-  const res = await bgAgain.getEvents()
+  const res = await bgSessionAgain.getEvents()
   for (const event of res.events) {
     if (event.type === "token") process.stdout.write(event.text)
     else if (event.type === "tool_start") console.log("[Tool]", event.name)
     else if (event.type === "tool_end") console.log("[Tool end]")
   }
-  if (res.status === "completed") return
+  if (!(await bgSessionAgain.isRunning())) return // agent finished or crashed
   setTimeout(readAll, 2000)
 }
 readAll()
 
 // --- To cancel the running agent: kills the current turn's process in the sandbox (no-op if already stopped). ---
-await bgAgain.cancel()
+await bgSessionAgain.cancel()
 ```
 
 ## Local Mode (Dangerous)

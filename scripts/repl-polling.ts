@@ -194,6 +194,10 @@ async function main() {
             }
           }
 
+          if (!done && !(await bgSession.isRunning())) {
+            done = true
+            console.log("\n\x1b[90m(agent process stopped)\x1b[0m")
+          }
           if (!done) {
             await new Promise(resolve => setTimeout(resolve, 500))
           }
