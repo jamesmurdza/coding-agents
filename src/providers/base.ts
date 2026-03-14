@@ -390,12 +390,17 @@ export abstract class Provider implements IProvider {
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (meta?.pid == null || meta.pid < 1 || !this.sandboxManager?.executeCommand) return false
+    if (meta?.pid == null || meta.pid < 1 || !this.sandboxManager?.executeCommand) {
+      debugLog(`isRunning false (no valid pid) sessionDir=${sessionDir} pid=${meta?.pid ?? "null"}`)
+      return false
+    }
     const result = await this.sandboxManager.executeCommand(
       `kill -0 ${meta.pid} 2>/dev/null`,
       10
     )
-    return result.exitCode === 0
+    const running = result.exitCode === 0
+    debugLog(`isRunning pid=${meta.pid} exitCode=${result.exitCode} => ${running}`)
+    return running
   }
 
   /**
