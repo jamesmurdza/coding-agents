@@ -367,6 +367,7 @@ export abstract class Provider implements IProvider {
   /**
    * Start a new turn in a session directory: one log file per turn, meta in sandbox.
    * Uses currentTurn for this run; currentTurn is incremented when the turn ends (in getEvents).
+   * Writes meta with runId/outputFile before starting so reattaching clients see "running" immediately.
    */
   async startSandboxBackgroundTurn(
     sessionDir: string,
@@ -379,8 +380,19 @@ export abstract class Provider implements IProvider {
     const meta = await this.readSandboxMeta(sessionDir)
     const currentTurn = meta?.currentTurn ?? 0
     const outputFile = `${sessionDir}/${currentTurn}.jsonl`
+    const runId = randomUUID().slice(0, 8)
     debugLog(`background turn start provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} outputFile=${outputFile}`)
-    const result = await this.startSandboxBackground({ ...options, outputFile })
+    // Write meta with runId/outputFile first so getBackgroundSession + isRunning/getEvents see a run in progress immediately
+    await this.writeSandboxMeta(sessionDir, {
+      currentTurn,
+      cursor: 0,
+      runId,
+      outputFile,
+      startedAt: new Date().toISOString(),
+      provider: this.name,
+      sessionId: this.sessionId ?? options.sessionId ?? meta?.sessionId ?? null,
+    })
+    const result = await this.startSandboxBackground({ ...options, outputFile, runId })
     debugLog(`background turn started provider=${this.name} pid=${result.pid} executionId=${result.executionId}`)
     await this.writeSandboxMeta(sessionDir, {
       currentTurn,
@@ -390,9 +402,6 @@ export abstract class Provider implements IProvider {
       outputFile,
       startedAt: new Date().toISOString(),
       provider: this.name,
-      // Prefer the live provider session id when available, but fall back
-      // to any supplied/previous value so background reattach can resume
-      // even before events have been polled in this process.
       sessionId: this.sessionId ?? options.sessionId ?? meta?.sessionId ?? null,
     })
     return { executionId: result.executionId, pid: result.pid, outputFile }
@@ -505,9 +514,10 @@ export abstract class Provider implements IProvider {
    * Start a background run inside the sandbox.
    * The CLI is run with stdout redirected to an append-only JSONL log file.
    * Later you can call pollSandboxBackground(outputFile, cursor) to consume new events.
+   * If options.runId is provided (e.g. from startSandboxBackgroundTurn), it is used so meta can be written before this returns.
    */
   async startSandboxBackground(
-    options: RunOptions & { outputFile: string }
+    options: RunOptions & { outputFile: string; runId?: string }
   ): Promise<{
     executionId: string
     pid: number
@@ -535,8 +545,7 @@ export abstract class Provider implements IProvider {
         : arg
     )].join(" ")
 
-    // Unique path per run so .done from a previous run never collides.
-    const runId = randomUUID().slice(0, 8)
+    const runId = options.runId ?? randomUUID().slice(0, 8)
     const pidFile = `${options.outputFile}.${runId}.pid`
     const doneFile = `${pidFile}.done`
     const bgCommand = `bash -lc "( ( ${fullCommand.replace(/"/g, '\\"')} >> ${options.outputFile} 2>&1 ; echo 1 > ${doneFile} ) & echo \\$! > ${pidFile} )"`
