@@ -185,11 +185,10 @@ export class OpenCodeProvider extends Provider {
       return { type: "tool_end" }
     }
 
-    // Step finish - completion
+    // Step finish - emit end only when run actually stops (reason "stop"); ignore intermediate steps (e.g. reason "tool-calls").
     if (json.type === "step_finish") {
-      // Ignore intermediate tool-calls steps; only end on final stop.
-      if (json.part?.reason && json.part.reason !== "stop") return null
-      return { type: "end" }
+      if (json.part?.reason === "stop") return { type: "end" }
+      return null
     }
 
     // Error event - log and continue
