@@ -286,6 +286,7 @@ export abstract class Provider implements IProvider {
     cursor: number
     pid?: number
     runId?: string
+    sawEnd?: boolean
     startedAt?: string
     provider?: import("../types/index.js").ProviderName
     sessionId?: string | null
@@ -303,6 +304,7 @@ export abstract class Provider implements IProvider {
         cursor?: number
         pid?: number
         runId?: string
+        sawEnd?: boolean
         startedAt?: string
         provider?: import("../types/index.js").ProviderName
         sessionId?: string | null
@@ -313,6 +315,7 @@ export abstract class Provider implements IProvider {
         cursor: o.cursor,
         pid: o.pid,
         runId: o.runId,
+        sawEnd: o.sawEnd,
         startedAt: o.startedAt,
         provider: o.provider,
         sessionId: o.sessionId ?? null,
@@ -329,6 +332,7 @@ export abstract class Provider implements IProvider {
       cursor: number
       pid?: number
       runId?: string
+      sawEnd?: boolean
       startedAt?: string
       provider?: import("../types/index.js").ProviderName
       sessionId?: string | null
@@ -430,15 +434,43 @@ export abstract class Provider implements IProvider {
     const cursor = meta != null ? String(meta.cursor) : null
     debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} turn=${currentTurn} cursor=${cursor}`)
     const result = await this.pollSandboxBackground(outputFile, cursor)
+    const sawEnd = meta?.sawEnd || result.events.some((e) => e.type === "end")
     await this.writeSandboxMeta(sessionDir, {
       currentTurn,
       cursor: Number(result.cursor) || 0,
       pid: meta?.pid,
       runId: meta?.runId,
+      sawEnd,
       startedAt: meta?.startedAt,
       provider: this.name,
       sessionId: this.sessionId,
     })
+    const stillRunning = await this.isSandboxBackgroundProcessRunning(sessionDir)
+    if (!stillRunning && !sawEnd) {
+      const maxOutputChars = 4096
+      let output: string | undefined
+      if (this.sandboxManager?.executeCommand) {
+        const outResult = await this.sandboxManager.executeCommand(`cat ${outputFile} 2>/dev/null || true`, 10)
+        const raw = (outResult.output ?? "").trim()
+        output = raw.length > maxOutputChars ? raw.slice(-maxOutputChars) : raw || undefined
+      }
+      const crashEvent: Event = {
+        type: "agent_crashed",
+        message: "Agent process exited without completing (crashed or killed)",
+        output,
+      }
+      await this.writeSandboxMeta(sessionDir, {
+        currentTurn,
+        cursor: Number(result.cursor) || 0,
+        pid: meta?.pid,
+        runId: meta?.runId,
+        sawEnd: true,
+        startedAt: meta?.startedAt,
+        provider: this.name,
+        sessionId: this.sessionId,
+      })
+      return { sessionId: result.sessionId, events: [...result.events, crashEvent], cursor: result.cursor }
+    }
     return { sessionId: result.sessionId, events: result.events, cursor: result.cursor }
   }
 

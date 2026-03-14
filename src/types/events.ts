@@ -133,6 +133,14 @@ export interface EndEvent {
   type: "end"
 }
 
+/** Agent crashed event - process exited without emitting end (e.g. crash or kill) */
+export interface AgentCrashedEvent {
+  type: "agent_crashed"
+  message?: string
+  /** Raw tail of stdout/stderr before exit (often not valid JSONL; use for debugging only) */
+  output?: string
+}
+
 /** Union type of all possible events */
 export type Event =
   | SessionEvent
@@ -141,6 +149,7 @@ export type Event =
   | ToolDeltaEvent
   | ToolEndEvent
   | EndEvent
+  | AgentCrashedEvent
 
 /** Event type discriminator */
 export type EventType = Event["type"]
