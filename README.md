@@ -250,7 +250,8 @@ Set `model` when creating the session.
 For long-running or restart-tolerant flows: start the agent in the sandbox, write the event stream to log files there, and poll with **getEvents**. All state except the session ID lives in the sandbox.
 
 - **Session ID** — One UUID per background session; host stores only this.
-- **Layout** — One directory per session (e.g. `/tmp/codeagent-<id>/`), one JSONL file per turn (`0.jsonl`, `1.jsonl`, …), plus `meta.json` (currentTurn, cursor, pid).
+- **start()** — Returns immediately with `{ executionId, pid, outputFile }`; the agent runs in the background.
+- **isRunning()** — True while the turn is in progress, false after.
 - **Crash detection** — If the process exits without completing, **getEvents** returns an `agent_crashed` event. You can treat it like `end` to stop polling and show a warning.
 
 **Example:** start, persist `sandboxId` and `backgroundSessionId`, then reattach after a restart.
@@ -372,7 +373,8 @@ CODING_AGENTS_DEBUG=1 npx tsx scripts/repl-polling.ts
 ```bash
 npm install
 npm run build
-npm test                    # unit tests
+npm test                    # unit tests (integration/sandbox-background skipped without keys)
+DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npm run test -- tests/integration/sandbox-background.test.ts   # real sandbox background test
 DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/test-sdk-full.ts   # integration
 DAYTONA_API_KEY=... ANTHROPIC_API_KEY=... npx tsx scripts/repl.ts            # REPL
 ```
