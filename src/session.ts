@@ -7,6 +7,9 @@ import { adaptSandbox } from "./sandbox/index.js"
 
 const CODEAGENT_SESSION_DIR_PREFIX = "/tmp/codeagent-"
 
+/** Cache reattached background sessions by id so status/getEvents polls don't recreate the provider every time. */
+const backgroundSessionCache = new Map<string, BackgroundSession>()
+
 async function readProviderFromMeta(
   sandbox: Parameters<typeof adaptSandbox>[0],
   sessionDir: string
@@ -112,7 +115,7 @@ export async function createBackgroundSession(
   return createBackgroundSessionWithId(name, { ...sessionOptions, backgroundSessionId: id }, id)
 }
 
-/** Reattach to an existing background session by id (e.g. after restart). Provider is read from sandbox meta (written at session creation). */
+/** Reattach to an existing background session by id (e.g. after restart). Provider is read from sandbox meta (written at session creation). Cached per id so repeated polls don't recreate the provider. */
 export async function getBackgroundSession(
   options: BackgroundSessionOptions & {
     backgroundSessionId: string
@@ -120,6 +123,11 @@ export async function getBackgroundSession(
   }
 ): Promise<BackgroundSession> {
   const { backgroundSessionId, sandbox } = options
+  const cached = backgroundSessionCache.get(backgroundSessionId)
+  if (cached) {
+    debugLog("getBackgroundSession", "id=" + backgroundSessionId, "cached")
+    return cached
+  }
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${backgroundSessionId}`
   debugLog("getBackgroundSession", "id=" + backgroundSessionId, "sessionDir=" + sessionDir)
   const meta = await readProviderFromMeta(sandbox, sessionDir)
@@ -150,7 +158,7 @@ async function createBackgroundSessionWithId(
   const sessionDir = `${CODEAGENT_SESSION_DIR_PREFIX}${id}`
   await provider.writeInitialSessionMeta(sessionDir)
 
-  return {
+  const session: BackgroundSession = {
     id,
     provider,
     async start(prompt: string, extraOptions?: Omit<RunOptions, "prompt">) {
@@ -181,4 +189,6 @@ async function createBackgroundSessionWithId(
       return provider.cancelSandboxBackground(sessionDir)
     },
   }
+  backgroundSessionCache.set(id, session)
+  return session
 }
