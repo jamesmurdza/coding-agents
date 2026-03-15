@@ -2,8 +2,9 @@
  * Daytona sandbox adapter: wraps a Sandbox from @daytonaio/sdk into CodeAgentSandbox.
  * Background session start always uses SSH (executeBackground) so start() returns quickly;
  * requires sandbox.createSshAccess(). All other commands use process API.
+ * ssh2 is loaded dynamically to avoid bundlers (e.g. Next.js) pulling in native .node addons.
  */
-import { Client } from "ssh2"
+import type { Client, ClientChannel } from "ssh2"
 import type { Sandbox } from "@daytonaio/sdk"
 import type { CodeAgentSandbox, AdaptSandboxOptions, ExecuteBackgroundOptions, ProviderName } from "../types/index.js"
 import { getPackageName } from "../utils/install.js"
@@ -25,7 +26,7 @@ function execOverSsh(
 ): Promise<{ exitCode: number; output: string }> {
   return new Promise((resolve, reject) => {
     const timer = timeoutMs > 0 ? setTimeout(() => reject(new Error(`SSH exec timeout after ${timeoutMs}ms`)), timeoutMs) : undefined
-    conn.exec(command, (err: Error | undefined, stream: import("ssh2").ClientChannel) => {
+    conn.exec(command, (err: Error | undefined, stream: ClientChannel) => {
       if (err) {
         clearTimeout(timer as NodeJS.Timeout)
         reject(err)
@@ -103,14 +104,17 @@ export function adaptDaytonaSandbox(
     if (!hasSshAccess(sandbox)) throw new Error("Sandbox has no createSshAccess(); cannot run background command over SSH.")
     let t = Date.now()
     if (!sshConnectPromise) {
-      sshConnectPromise = new Promise<Client>((resolve, reject) => {
-        sandbox.createSshAccess!(SSH_TOKEN_EXPIRY_MINUTES).then((access) => {
-          const c = new Client()
-          c.on("ready", () => resolve(c))
-          c.on("error", reject)
-          c.connect({ host: SSH_HOST, port: SSH_PORT, username: access.token })
-        }).catch(reject)
-      })
+      sshConnectPromise = (async () => {
+        const { Client: SshClient } = await import("ssh2")
+        return new Promise<Client>((resolve, reject) => {
+          sandbox.createSshAccess!(SSH_TOKEN_EXPIRY_MINUTES).then((access) => {
+            const c = new SshClient()
+            c.on("ready", () => resolve(c))
+            c.on("error", reject)
+            c.connect({ host: SSH_HOST, port: SSH_PORT, username: access.token })
+          }).catch(reject)
+        })
+      })()
     }
     const conn = await sshConnectPromise
     console.log(`[timing] SSH connect (or reuse) took ${Date.now() - t}ms`)

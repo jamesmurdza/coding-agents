@@ -65,6 +65,14 @@ For sandboxed execution, also install the Daytona SDK:
 npm install @daytonaio/sdk
 ```
 
+**Next.js:** Merge the SDK's Next config so native deps (e.g. `ssh2` / `cpu-features`) are not bundled:
+
+```js
+// next.config.js or next.config.mjs
+import codeagentsdk from '@jamesmurdza/coding-agents-sdk/next.config'
+export default { ...codeagentsdk, ...yourConfig }
+```
+
 ---
 
 ## Quick start
