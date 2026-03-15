@@ -146,9 +146,11 @@ describe("OpenCodeProvider", () => {
       expect(event).toEqual({ type: "tool_end" })
     })
 
-    it("should parse step_finish event", () => {
+    it("should parse step_finish event (reason stop)", () => {
       const provider = createTestProvider()
-      const event = provider.parse('{"type": "step_finish", "sessionID": "ses_xyz123"}')
+      const event = provider.parse(
+        '{"type": "step_finish", "sessionID": "ses_xyz123", "part": {"reason": "stop"}}'
+      )
 
       expect(event).toEqual({ type: "end" })
     })

@@ -526,7 +526,12 @@ export abstract class Provider implements IProvider {
       if (this.sandboxManager?.executeCommand) {
         const outResult = await this.sandboxManager.executeCommand(`cat ${outputFile} 2>/dev/null || true`, 10)
         const raw = (outResult.output ?? "").trim()
-        output = raw.length > maxOutputChars ? raw.slice(-maxOutputChars) : raw || undefined
+        const nonJsonLines = raw.split("\n").filter((line) => {
+          const t = line.trim()
+          return t && !(t.startsWith("{") && t.endsWith("}"))
+        })
+        const filtered = nonJsonLines.join("\n").trim()
+        output = filtered.length > maxOutputChars ? filtered.slice(-maxOutputChars) : filtered || undefined
       }
       const crashEvent: Event = {
         type: "agent_crashed",
