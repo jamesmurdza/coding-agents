@@ -137,9 +137,12 @@ export function adaptDaytonaSandbox(
       .join(" ")
     const cmd = envPrefix ? `${envPrefix} ${opts.command}` : opts.command
     // nohup detaches from SSH session so channel closes and we get PID immediately (like Daytona example)
+    // Write outputFile.done when command exits so isRunning can use it (process API may not see SSH-started pid)
     const safeCmd = cmd.replace(/'/g, "'\\''")
     const safeOutput = opts.outputFile.replace(/'/g, "'\\''")
-    const wrapper = `nohup sh -c '${safeCmd} >> ${safeOutput} 2>&1' > /dev/null 2>&1 & echo $!`
+    const doneFile = opts.outputFile + ".done"
+    const safeDone = doneFile.replace(/'/g, "'\\''")
+    const wrapper = `nohup sh -c '${safeCmd} >> ${safeOutput} 2>&1; echo 1 > ${safeDone}' > /dev/null 2>&1 & echo $!`
     t = Date.now()
     const result = await execOverSsh(conn, wrapper, 15_000)
     console.log(`[timing] execOverSsh(wrapper) took ${Date.now() - t}ms (executeBackground total ${Date.now() - t0}ms)`)

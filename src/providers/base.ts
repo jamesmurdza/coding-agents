@@ -441,19 +441,49 @@ export abstract class Provider implements IProvider {
 
   /**
    * Check if the current turn's process is still running in the sandbox.
-   * True only while a turn is in progress; false until the next turn starts. Uses kill -0.
+   * True only while a turn is in progress; false until the next turn starts.
+   * Tries: (1) done file if outputFile set, (2) kill -0, (3) ps -p (process API may not see SSH-started pids).
    */
   async isSandboxBackgroundProcessRunning(sessionDir: string): Promise<boolean> {
     const meta = await this.readSandboxMeta(sessionDir)
-    if (meta?.pid == null || meta.pid < 1 || !this.sandboxManager?.executeCommand) {
-      debugLog(`isRunning false (no valid pid) sessionDir=${sessionDir} pid=${meta?.pid ?? "null"}`)
+    if (!meta?.runId || !this.sandboxManager?.executeCommand) {
+      debugLog(`isRunning false (no run) sessionDir=${sessionDir}`)
       return false
     }
-    const result = await this.sandboxManager.executeCommand(`kill -0 ${meta.pid} 2>/dev/null; echo $?`, 10)
-    const exitCode = Number((result.output ?? "").trim().split(/\s+/).pop()) || 1
-    const running = exitCode === 0
-    debugLog(`isRunning kill -0 ${meta.pid} => ${running}`)
-    return running
+    const mgr = this.sandboxManager
+
+    // 1) Done file: wrapper writes outputFile.done when command exits (works across SSH vs process API)
+    if (meta.outputFile) {
+      const donePath = meta.outputFile + ".done"
+      const escaped = donePath.replace(/'/g, "'\\''")
+      const r = await mgr.executeCommand(`test -f '${escaped}' 2>/dev/null; echo $?`, 10)
+      const doneExists = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
+      if (doneExists) {
+        debugLog(`isRunning false (done file exists) sessionDir=${sessionDir}`)
+        return false
+      }
+      // Run in progress (outputFile set) and no done file => still running
+      debugLog(`isRunning true (no done file) sessionDir=${sessionDir}`)
+      return true
+    }
+
+    // 2) kill -0 (may fail if pid was started over SSH and check runs in process API)
+    if (meta.pid != null && meta.pid >= 1) {
+      const r = await mgr.executeCommand(`kill -0 ${meta.pid} 2>/dev/null; echo $?`, 10)
+      const ok = Number((r.output ?? "").trim().split(/\s+/).pop()) === 0
+      if (ok) {
+        debugLog(`isRunning true (kill -0) pid=${meta.pid}`)
+        return true
+      }
+      // 3) ps -p as fallback (different namespace / shell)
+      const ps = await mgr.executeCommand(`ps -p ${meta.pid} >/dev/null 2>&1; echo $?`, 10)
+      const psOk = Number((ps.output ?? "").trim().split(/\s+/).pop()) === 0
+      debugLog(`isRunning ${psOk ? "true" : "false"} (ps -p) pid=${meta.pid}`)
+      return psOk
+    }
+
+    debugLog(`isRunning false (no pid) sessionDir=${sessionDir}`)
+    return false
   }
 
   /**
@@ -480,9 +510,8 @@ export abstract class Provider implements IProvider {
     const result = await this.pollSandboxBackground(outputFile, cursor)
     const sawEnd = meta.sawEnd || result.events.some((e) => e.type === "end")
     const stillRunning = await this.isSandboxBackgroundProcessRunning(sessionDir)
-    if (!stillRunning) {
-      // Turn ended: increment currentTurn; clear runId/outputFile only once we've seen end event
-      // so the next getEvents() can re-read the file and return the result/end line (path is correct).
+    // Clear run when process stopped or we've seen end event (sawEnd can be true before .done file exists)
+    if (!stillRunning || sawEnd) {
       const nextTurn = (meta.currentTurn ?? 0) + 1
       const metaUpdate = {
         currentTurn: nextTurn,
@@ -493,7 +522,8 @@ export abstract class Provider implements IProvider {
         ...(sawEnd ? {} : { outputFile: meta.outputFile, runId: meta.runId }),
       }
       await this.writeSandboxMeta(sessionDir, metaUpdate)
-    } else {
+    }
+    if (stillRunning && !sawEnd) {
       await this.writeSandboxMeta(sessionDir, {
         currentTurn: meta.currentTurn,
         cursor: Number(result.cursor) || 0,
