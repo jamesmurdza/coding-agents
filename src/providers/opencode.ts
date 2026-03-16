@@ -191,11 +191,10 @@ export class OpenCodeProvider extends Provider {
       return null
     }
 
-    // Error event - log and continue
+    // Error event - emit as end with error
     if (json.type === "error") {
       const errorMsg = json.error?.data?.message || json.error?.name || "Unknown error"
-      console.error("[OpenCode Error]", errorMsg)
-      return { type: "end" }
+      return { type: "end", error: errorMsg }
     }
 
     return null

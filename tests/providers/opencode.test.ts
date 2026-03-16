@@ -155,13 +155,22 @@ describe("OpenCodeProvider", () => {
       expect(event).toEqual({ type: "end" })
     })
 
-    it("should parse error event", () => {
+    it("should parse error event with error message", () => {
       const provider = createTestProvider()
       const event = provider.parse(
         '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError", "data": {"message": "Rate limit exceeded"}}}'
       )
 
-      expect(event).toEqual({ type: "end" })
+      expect(event).toEqual({ type: "end", error: "Rate limit exceeded" })
+    })
+
+    it("should parse error event falling back to error name", () => {
+      const provider = createTestProvider()
+      const event = provider.parse(
+        '{"type": "error", "sessionID": "ses_xyz123", "error": {"name": "APIError"}}'
+      )
+
+      expect(event).toEqual({ type: "end", error: "APIError" })
     })
 
     it("should return null for unknown event types", () => {
