@@ -500,7 +500,7 @@ export abstract class Provider implements IProvider {
   }> {
     const meta = await this.readSandboxMeta(sessionDir)
     if (!meta?.runId || !meta.outputFile) {
-      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} (no turn in progress)`, this.sessionId)
+      debugLog(`getEventsSandboxBackgroundFromMeta provider=${this.name} sessionDir=${sessionDir} (no turn in progress) meta=${JSON.stringify(meta)}`, this.sessionId)
       return {
         sessionId: meta?.sessionId ?? this.sessionId ?? null,
         events: [],
