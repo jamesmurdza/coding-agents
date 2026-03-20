@@ -37,11 +37,11 @@ export abstract class Provider implements IProvider {
   /** Resolves when initial setup (install + env) has completed. */
   private _readyPromise: Promise<void> | null = null
 
-  /** Env passed at creation; used for setup and when run() omits env */
-  private _creationEnv: Record<string, string> | undefined
-
   /** Defaults merged into every run (model, timeout, sessionId, env). Set by createSession. */
   private _runDefaults: RunDefaults = {}
+
+  /** Tracks whether session-level env has been applied */
+  private _sessionEnvApplied = false
 
   /** Tracks whether we've already applied a synthetic system prompt for this session. */
   private _systemPromptApplied = false
@@ -51,7 +51,6 @@ export abstract class Provider implements IProvider {
   }
 
   constructor(options: ProviderOptions = {}) {
-    this._creationEnv = options.env
     this._runDefaults = options.runDefaults ?? {}
     if (options.sandbox) {
       this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
@@ -143,21 +142,58 @@ export abstract class Provider implements IProvider {
     )
   }
 
-  /** One-time setup: install CLI and set env. Run in microtask so subclass name is set. */
+  /** One-time setup: install CLI and set session-level env. Run in microtask so subclass name is set. */
   private async _doSetup(): Promise<void> {
     if (!this.sandboxManager) return
     const t = Date.now()
     await this.sandboxManager.ensureProvider(this.name)
     console.log(`[timing] ensureProvider(${this.name}) took ${Date.now() - t}ms`)
-    if (this._creationEnv) this.sandboxManager.setEnvVars(this._creationEnv)
+
+    // Apply session-level env from runDefaults (set by createSession)
+    const sessionEnv = this._runDefaults.env
+    if (sessionEnv && !this._sessionEnvApplied) {
+      if (this.sandboxManager.setSessionEnvVars) {
+        this.sandboxManager.setSessionEnvVars(sessionEnv)
+      } else {
+        // Fallback for backwards compatibility
+        this.sandboxManager.setEnvVars(sessionEnv)
+      }
+      this._sessionEnvApplied = true
+    }
   }
 
-  /** Per-run: set env and Codex login. */
+  /** Per-run: clear previous run-level env, set new run-level env, and handle Codex login. */
   private async _applyRunEnv(options: RunOptions): Promise<void> {
     if (!this.sandboxManager) return
-    const env = options.env ?? this._creationEnv
-    if (env) this.sandboxManager.setEnvVars(env)
-    await this._codexLoginIfNeeded(env)
+
+    // Ensure session-level env is applied (idempotent)
+    const sessionEnv = this._runDefaults.env
+    if (sessionEnv && !this._sessionEnvApplied) {
+      if (this.sandboxManager.setSessionEnvVars) {
+        this.sandboxManager.setSessionEnvVars(sessionEnv)
+      } else {
+        this.sandboxManager.setEnvVars(sessionEnv)
+      }
+      this._sessionEnvApplied = true
+    }
+
+    // Clear previous run-level env
+    if (this.sandboxManager.clearRunEnvVars) {
+      this.sandboxManager.clearRunEnvVars()
+    }
+
+    // Apply new run-level env (if provided)
+    const runEnv = options.env
+    if (runEnv) {
+      if (this.sandboxManager.setRunEnvVars) {
+        this.sandboxManager.setRunEnvVars(runEnv)
+      } else {
+        // Fallback for backwards compatibility
+        this.sandboxManager.setEnvVars(runEnv)
+      }
+    }
+
+    await this._codexLoginIfNeeded(runEnv ?? sessionEnv)
   }
 
   /**
@@ -244,8 +280,9 @@ export abstract class Provider implements IProvider {
       cwd: options.cwd,
       env: {
         ...process.env,
-        ...cmdEnv,
-        ...options.env,
+        ...this._runDefaults.env,  // Session-level env (medium precedence)
+        ...cmdEnv,                  // Command-specific env
+        ...options.env,             // Run-level env (highest precedence)
       },
     })
 

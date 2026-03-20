@@ -58,7 +58,14 @@ export function adaptDaytonaSandbox(
   sandbox: Sandbox,
   options: AdaptSandboxOptions = {}
 ): CodeAgentSandbox {
-  const envVars: Record<string, string> = { ...options.env }
+  // Two-level environment variable precedence: session-level (lower) and run-level (higher)
+  const sessionEnv: Record<string, string> = { ...options.env }
+  const runEnv: Record<string, string> = {}
+
+  // Compute merged environment with precedence: run-level overrides session-level
+  const computeMergedEnv = (): Record<string, string> => {
+    return { ...sessionEnv, ...runEnv }
+  }
 
   async function isProviderInstalled(name: ProviderName): Promise<boolean> {
     try {
@@ -85,7 +92,7 @@ export function adaptDaytonaSandbox(
   }
 
   async function executeCommand(command: string, timeout: number = 60): Promise<{ exitCode: number; output: string }> {
-    const envPrefix = Object.entries(envVars)
+    const envPrefix = Object.entries(computeMergedEnv())
       .map(([k, v]) => `${k}='${v.replace(/'/g, "'\\''")}'`)
       .join(" ")
     const fullCommand = envPrefix ? `${envPrefix} ${command}` : command
@@ -136,7 +143,7 @@ export function adaptDaytonaSandbox(
       console.log("[timing] --- end timing tests ---")
     }
 
-    const envPrefix = Object.entries(envVars)
+    const envPrefix = Object.entries(computeMergedEnv())
       .map(([k, v]) => `${k}='${String(v).replace(/'/g, "'\\''")}'`)
       .join(" ")
     const cmd = envPrefix ? `${envPrefix} ${opts.command}` : opts.command
@@ -165,7 +172,22 @@ export function adaptDaytonaSandbox(
 
   const result: CodeAgentSandbox = {
     setEnvVars(vars: Record<string, string>): void {
-      Object.assign(envVars, vars)
+      // Backwards compatibility: map to session-level
+      Object.assign(sessionEnv, vars)
+    },
+
+    setSessionEnvVars(vars: Record<string, string>): void {
+      Object.assign(sessionEnv, vars)
+    },
+
+    setRunEnvVars(vars: Record<string, string>): void {
+      Object.assign(runEnv, vars)
+    },
+
+    clearRunEnvVars(): void {
+      for (const key in runEnv) {
+        delete runEnv[key]
+      }
     },
 
     executeCommand,
@@ -193,7 +215,7 @@ export function adaptDaytonaSandbox(
       command: string,
       _timeout: number = 120
     ): AsyncGenerator<string, void, unknown> {
-      const envExports = Object.entries(envVars)
+      const envExports = Object.entries(computeMergedEnv())
         .map(([k, v]) => `export ${k}='${v.replace(/'/g, "'\\''")}'`)
         .join("; ")
       const timedCommand = _timeout > 0 ? `timeout ${_timeout}s ${command}` : command

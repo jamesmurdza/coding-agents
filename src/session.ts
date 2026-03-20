@@ -93,8 +93,12 @@ export interface BackgroundSession {
 export async function createSession(name: ProviderName, options: SessionOptions): Promise<Provider> {
   debugLog("createSession", options.sessionId, name)
   const { model, sessionId, timeout, systemPrompt, skipInstall, env, ...providerOptions } = options
+
+  // Store session-level env in runDefaults (medium precedence)
+  // Don't pass env directly to provider (that was causing double-passing bug)
   const runDefaults: RunDefaults = { model, sessionId, timeout, systemPrompt, skipInstall, env }
-  const provider = createProvider(name, { ...providerOptions, skipInstall, env, runDefaults })
+  const provider = createProvider(name, { ...providerOptions, skipInstall, runDefaults })
+
   await provider.ready
   debugLog("createSession ready", options.sessionId, name)
   return provider

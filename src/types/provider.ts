@@ -24,7 +24,14 @@ export interface ExecuteBackgroundOptions {
  */
 export interface CodeAgentSandbox {
   ensureProvider(name: ProviderName): Promise<void>
+  /** @deprecated Use setSessionEnvVars or setRunEnvVars instead for clearer precedence */
   setEnvVars(vars: Record<string, string>): void
+  /** Set session-level env vars (medium precedence, persistent across runs) */
+  setSessionEnvVars?(vars: Record<string, string>): void
+  /** Set run-level env vars (highest precedence, cleared after each run) */
+  setRunEnvVars?(vars: Record<string, string>): void
+  /** Clear run-level env vars (called before each run to reset precedence) */
+  clearRunEnvVars?(): void
   executeCommandStream(command: string, timeout?: number): AsyncGenerator<string, void, unknown>
   /** Optional: run a one-off command (used e.g. for Codex login). */
   executeCommand?(command: string, timeout?: number): Promise<{ exitCode: number; output: string }>
