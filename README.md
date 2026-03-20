@@ -1,4 +1,4 @@
-# Coding Agents SDK
+# Background Agents SDK
 
 A unified TypeScript interface for AI coding agents—Claude, Codex, Gemini, and OpenCode. Commands run in secure [Daytona](https://daytona.io) sandboxes by default, with real-time PTY streaming.
 
