@@ -174,10 +174,10 @@ Each provider is invoked via its CLI. Optional flags in brackets.
 
 | Provider | Command |
 |----------|---------|
-| **Claude** | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions` `[--model <m>] [--resume <id>]` `<prompt>` |
-| **Codex** | `codex exec --json --skip-git-repo-check --yolo` `[--model <m>] [--resume <id>]` `<prompt>` |
-| **OpenCode** | `opencode run --format json --variant medium -m <model>` `[-s <id>]` `<prompt>` (via `bash -lc "…"`) |
-| **Gemini** | `gemini -p --output-format stream-json --yolo` `[--model <m>] [--resume <id>]` `<prompt>` |
+| **Claude** | `claude -p --output-format stream-json --verbose --dangerously-skip-permissions` `[--system-prompt …] [--model <m>] [--resume <id>]` `<prompt>` |
+| **Codex** | `codex exec --json --skip-git-repo-check --yolo` `[--model <m>]` `resume <threadId>` `<prompt>` |
+| **OpenCode** | `bash -lc 'opencode run --format json --variant medium [-m <m>] [-s <id>] <prompt> 2>&1'` |
+| **Gemini** | `gemini --output-format stream-json` `[--model <m>] [--resume <id>] -p` `<prompt>` |
 
 ---
 
@@ -216,7 +216,7 @@ for await (const event of session.run("Hello")) {
 | `tool_start` | Tool invoked | `name: string`, `input?: unknown` |
 | `tool_delta` | Streaming tool input | `text: string` |
 | `tool_end` | Tool finished | `output?: string` |
-| `end` | Turn complete | — |
+| `end` | Turn complete (or CLI error) | `error?: string` when the provider reported a failure |
 | `agent_crashed` | Process exited without completing (crash/kill) | `message?: string`, `output?: string` (raw tail of stdout/stderr; often not JSONL) |
 
 ```typescript
