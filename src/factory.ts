@@ -5,7 +5,7 @@ import { Provider, ClaudeProvider, CodexProvider, OpenCodeProvider, GeminiProvid
  * Create a provider instance by name
  *
  * @param name - The provider name ("claude", "codex", "opencode", "gemini")
- * @param options - Provider options (sandbox or dangerouslyAllowLocalExecution)
+ * @param options - Provider options (sandbox is required for secure execution)
  * @returns A provider instance
  * @throws Error if the provider name is unknown
  *
@@ -15,9 +15,6 @@ import { Provider, ClaudeProvider, CodexProvider, OpenCodeProvider, GeminiProvid
  * const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY })
  * const sandbox = await daytona.create({ envVars: { ... } })
  * const provider = createProvider("claude", { sandbox })
- *
- * // Or with dangerous local execution:
- * const provider = createProvider("claude", { dangerouslyAllowLocalExecution: true })
  * ```
  */
 export function createProvider(name: ProviderName | string, options: ProviderOptions): Provider {

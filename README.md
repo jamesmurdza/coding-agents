@@ -48,7 +48,7 @@ Same pattern for any provider: create a sandbox, create a session, stream events
 
 ## Prerequisites
 
-A [Daytona](https://daytona.io) API key (or [run locally](#local-mode-dangerous) without a sandbox).
+A [Daytona](https://daytona.io) API key for secure sandboxed execution.
 
 ```bash
 export DAYTONA_API_KEY=dtn_your_api_key
@@ -332,19 +332,6 @@ async function poll() {
 poll()
 
 await bgAgain.cancel() // kill agent in sandbox (no-op if stopped)
-```
-
----
-
-## Local mode (dangerous)
-
-Runs the provider CLI on your machine instead of a sandbox. Only use when you fully trust the code.
-
-```typescript
-const session = await createSession("claude", { dangerouslyAllowLocalExecution: true })
-for await (const event of session.run("Hello")) {
-  if (event.type === "token") process.stdout.write(event.text)
-}
 ```
 
 ---

@@ -83,10 +83,6 @@ export {
 // Utilities
 export {
   safeJsonParse,
-  loadSession,
-  storeSession,
-  clearSession,
-  getDefaultSessionPath,
   isCliInstalled,
   installProvider,
   ensureCliInstalled,
