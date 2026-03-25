@@ -75,10 +75,6 @@ export interface RunOptions {
   systemPrompt?: string
   /** Optional session ID to resume */
   sessionId?: string
-  /** Whether to persist session ID to file (only for local mode) */
-  persistSession?: boolean
-  /** Custom session file path (only for local mode) */
-  sessionFile?: string
   /** Working directory for the provider process */
   cwd?: string
   /** Environment variables to pass to the provider */
@@ -100,19 +96,13 @@ export interface ProviderOptions {
    * Sandbox for secure execution. Pass a Sandbox from @daytonaio/sdk directly
    * (the SDK adapts it internally). Optional env here is used for CLI execution.
    */
-  sandbox?: CodeAgentSandbox | import("@daytonaio/sdk").Sandbox
+  sandbox: CodeAgentSandbox | import("@daytonaio/sdk").Sandbox
 
   /** Environment variables for CLI execution (e.g. when sandbox is a Daytona Sandbox) */
   env?: Record<string, string>
 
   /** Skip installing the provider CLI when the provider is created (default: false) */
   skipInstall?: boolean
-
-  /**
-   * Allow running commands directly on local machine without sandbox.
-   * ⚠️ DANGEROUS: Only use this if you trust the code being executed.
-   */
-  dangerouslyAllowLocalExecution?: boolean
 
   /** Defaults merged into every run() call (model, timeout, sessionId, env). Set by createSession. */
   runDefaults?: RunDefaults

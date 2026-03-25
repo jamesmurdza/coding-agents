@@ -7,12 +7,25 @@ import { ClaudeProvider } from "../src/providers/claude.js"
 import { CodexProvider } from "../src/providers/codex.js"
 import { GeminiProvider } from "../src/providers/gemini.js"
 import { OpenCodeProvider } from "../src/providers/opencode.js"
+import type { CodeAgentSandbox, ProviderName } from "../src/types/index.js"
 
-// All providers created with dangerouslyAllowLocalExecution for parser testing only
-const claude = new ClaudeProvider({ dangerouslyAllowLocalExecution: true })
-const codex = new CodexProvider({ dangerouslyAllowLocalExecution: true })
-const gemini = new GeminiProvider({ dangerouslyAllowLocalExecution: true })
-const opencode = new OpenCodeProvider({ dangerouslyAllowLocalExecution: true })
+// Minimal mock sandbox for parser testing (parse() doesn't use sandbox)
+function createMockSandbox(): CodeAgentSandbox {
+  return {
+    ensureProvider: async (_name: ProviderName) => {},
+    setEnvVars: (_vars: Record<string, string>) => {},
+    async *executeCommandStream(_command: string, _timeout?: number): AsyncGenerator<string, void, unknown> {
+      // No output for parser tests
+    },
+  }
+}
+
+// All providers created with a mock sandbox for parser testing only
+const mockSandbox = createMockSandbox()
+const claude = new ClaudeProvider({ sandbox: mockSandbox, skipInstall: true })
+const codex = new CodexProvider({ sandbox: mockSandbox, skipInstall: true })
+const gemini = new GeminiProvider({ sandbox: mockSandbox, skipInstall: true })
+const opencode = new OpenCodeProvider({ sandbox: mockSandbox, skipInstall: true })
 
 describe("ClaudeProvider.parse", () => {
   it("returns null for invalid JSON", () => {
@@ -162,7 +175,7 @@ describe("GeminiProvider.parse", () => {
 
   it("parses tool.end event with accumulated output", () => {
     // Create a fresh provider instance for stateful test
-    const g = new GeminiProvider({ dangerouslyAllowLocalExecution: true })
+    const g = new GeminiProvider({ sandbox: createMockSandbox(), skipInstall: true })
     g.parse('{"type": "tool.start", "name": "write_file"}')
     g.parse('{"type": "tool.delta", "text": "done"}')
     const event = g.parse('{"type": "tool.end"}')

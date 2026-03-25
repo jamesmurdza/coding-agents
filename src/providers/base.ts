@@ -1,5 +1,3 @@
-import { spawn } from "node:child_process"
-import * as readline from "node:readline"
 import { randomUUID } from "node:crypto"
 import { debugLog } from "../debug.js"
 import type {
@@ -11,8 +9,6 @@ import type {
   ProviderOptions,
   RunDefaults,
 } from "../types/index.js"
-import { getDefaultSessionPath, loadSession, storeSession } from "../utils/session.js"
-import { ensureCliInstalled } from "../utils/install.js"
 import type { CodeAgentSandbox } from "../types/index.js"
 import { adaptSandbox } from "../sandbox/index.js"
 
@@ -29,10 +25,7 @@ export abstract class Provider implements IProvider {
   }
 
   /** Sandbox for secure execution */
-  protected sandboxManager: CodeAgentSandbox | null = null
-
-  /** Whether local execution is allowed */
-  protected allowLocalExecution: boolean = false
+  protected sandboxManager: CodeAgentSandbox
 
   /** Resolves when initial setup (install + env) has completed. */
   private _readyPromise: Promise<void> | null = null
@@ -50,29 +43,13 @@ export abstract class Provider implements IProvider {
     return this._readyPromise ?? Promise.resolve()
   }
 
-  constructor(options: ProviderOptions = {}) {
+  constructor(options: ProviderOptions) {
     this._runDefaults = options.runDefaults ?? {}
-    if (options.sandbox) {
-      this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
-      if (!options.skipInstall) {
-        this._readyPromise = new Promise<void>((resolve, reject) => {
-          queueMicrotask(() => this._doSetup().then(resolve).catch(reject))
-        })
-      }
-    } else if (options.dangerouslyAllowLocalExecution) {
-      this.allowLocalExecution = true
-    } else {
-      throw new Error(
-        "Provider requires either a sandbox or dangerouslyAllowLocalExecution: true. " +
-        "For secure execution, create a sandbox with @daytonaio/sdk and pass it in:\n\n" +
-        "  import { Daytona } from '@daytonaio/sdk'\n" +
-        "  import { createProvider } from 'background-agents'\n" +
-        "  const daytona = new Daytona({ apiKey: '...' })\n" +
-        "  const sandbox = await daytona.create({ envVars: { ANTHROPIC_API_KEY: '...' } })\n" +
-        "  const provider = createProvider('claude', { sandbox })\n\n" +
-        "For local execution (dangerous), use:\n\n" +
-        "  const provider = createProvider('claude', { dangerouslyAllowLocalExecution: true })"
-      )
+    this.sandboxManager = adaptSandbox(options.sandbox, { env: options.env })
+    if (!options.skipInstall) {
+      this._readyPromise = new Promise<void>((resolve, reject) => {
+        queueMicrotask(() => this._doSetup().then(resolve).catch(reject))
+      })
     }
   }
 
@@ -118,13 +95,7 @@ export abstract class Provider implements IProvider {
     options = this._applySystemPrompt(options)
 
     debugLog(`run start provider=${this.name} promptLength=${options.prompt?.length ?? 0}`, this.sessionId)
-    if (this.sandboxManager) {
-      yield* this.runSandbox(options)
-    } else if (this.allowLocalExecution) {
-      yield* this.runLocal(options)
-    } else {
-      throw new Error("No execution mode configured")
-    }
+    yield* this.runSandbox(options)
     debugLog(`run end provider=${this.name}`, this.sessionId)
   }
 
@@ -144,7 +115,6 @@ export abstract class Provider implements IProvider {
 
   /** One-time setup: install CLI and set session-level env. Run in microtask so subclass name is set. */
   private async _doSetup(): Promise<void> {
-    if (!this.sandboxManager) return
     const t = Date.now()
     await this.sandboxManager.ensureProvider(this.name)
     console.log(`[timing] ensureProvider(${this.name}) took ${Date.now() - t}ms`)
@@ -164,8 +134,6 @@ export abstract class Provider implements IProvider {
 
   /** Per-run: clear previous run-level env, set new run-level env, and handle Codex login. */
   private async _applyRunEnv(options: RunOptions): Promise<void> {
-    if (!this.sandboxManager) return
-
     // Ensure session-level env is applied (idempotent)
     const sessionEnv = this._runDefaults.env
     if (sessionEnv && !this._sessionEnvApplied) {
@@ -200,9 +168,6 @@ export abstract class Provider implements IProvider {
    * Run in a secure Daytona sandbox
    */
   private async *runSandbox(options: RunOptions): AsyncGenerator<Event, void, unknown> {
-    if (!this.sandboxManager) {
-      throw new Error("Sandbox manager not configured")
-    }
     await (this._readyPromise ?? Promise.resolve())
     await this._applyRunEnv(options)
 
@@ -252,86 +217,6 @@ export abstract class Provider implements IProvider {
       }
     }
     debugLog(`runSandbox stream ended provider=${this.name}`, this.sessionId)
-  }
-
-  /**
-   * Run directly on local machine (dangerous - use with caution)
-   */
-  private async *runLocal(options: RunOptions): AsyncGenerator<Event, void, unknown> {
-    // Ensure CLI is installed locally
-    ensureCliInstalled(this.name, !(options.skipInstall ?? false))
-
-    // Load session from file if not provided and persistence is enabled
-    const sessionFile = options.sessionFile ?? getDefaultSessionPath(this.name)
-
-    if (options.sessionId) {
-      this.sessionId = options.sessionId
-    } else if (options.persistSession !== false) {
-      this.sessionId = loadSession(sessionFile)
-    }
-
-    const { cmd, args, env: cmdEnv } = this.getCommand(options)
-
-    const cliCommand = [cmd, ...args].join(" ")
-    debugLog("runLocal cli", this.sessionId, cliCommand)
-
-    const proc = spawn(cmd, args, {
-      stdio: ["inherit", "pipe", "inherit"],
-      cwd: options.cwd,
-      env: {
-        ...process.env,
-        ...this._runDefaults.env,  // Session-level env (medium precedence)
-        ...cmdEnv,                  // Command-specific env
-        ...options.env,             // Run-level env (highest precedence)
-      },
-    })
-
-    const rl = readline.createInterface({ input: proc.stdout! })
-    let pendingToolEnd = false
-
-    debugLog(`runLocal started provider=${this.name}`, this.sessionId)
-    for await (const line of rl) {
-      debugLog(`raw line (local): ${line.length > 300 ? line.slice(0, 300) + "…" : line}`, this.sessionId)
-      const raw = this.parse(line)
-      if (raw === null) {
-        debugLog(`unparsed line (local):`, this.sessionId, line)
-      }
-      const events = raw === null ? [] : Array.isArray(raw) ? raw : [raw]
-      for (const event of events) {
-        if (event.type === "session") {
-          this.sessionId = event.id
-          if (options.persistSession !== false) {
-            storeSession(sessionFile, event.id)
-          }
-        }
-        if (event.type === "tool_start") pendingToolEnd = true
-        if (event.type === "tool_end") pendingToolEnd = false
-        if (event.type === "end" && pendingToolEnd) {
-          yield { type: "tool_end" }
-          pendingToolEnd = false
-        }
-        if (event.type === "end") {
-          debugLog("session end", this.sessionId, event.error ? `reason=error ${event.error}` : "reason=completed")
-        } else if (event.type === "agent_crashed") {
-          debugLog("session end", this.sessionId, "reason=crashed", event.message ?? event.output ?? "")
-        }
-        yield event
-      }
-    }
-
-    // Wait for process to close
-    await new Promise<void>((resolve, reject) => {
-      proc.on("close", (code) => {
-        debugLog(`runLocal process closed provider=${this.name} code=${code}`, this.sessionId)
-        if (code != null && code !== 0) {
-          debugLog("session end", this.sessionId, `reason=process exited with code ${code}`)
-          reject(new Error(`Provider process exited with code ${code}`))
-        } else {
-          resolve()
-        }
-      })
-      proc.on("error", reject)
-    })
   }
 
   /** Meta stored in sandbox for background session (one log per turn, cursor in meta). */
